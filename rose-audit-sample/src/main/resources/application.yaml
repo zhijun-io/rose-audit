@@ -1,0 +1,19 @@
+spring:
+  data:
+    web:
+      pageable:
+        default-page-size: 10
+        max-page-size: 200
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          no-store: true
+  datasource:
+    url: ${AUDIT_DB_URL:jdbc:postgresql://localhost:55432/rose_audit}
+    username: ${AUDIT_DB_USERNAME:rose_audit}
+    password: ${AUDIT_DB_PASSWORD:rose_audit_local}
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/audit-schema-postgresql.sql

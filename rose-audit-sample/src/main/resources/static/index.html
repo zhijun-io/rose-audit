@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rose Audit 示例</title>
+    <link rel="stylesheet" href="/styles.css?v=4" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand-mark">RA</div>
+        <div>
+          <p class="eyebrow">ROSE AUDIT</p>
+          <h1>审计事件演示</h1>
+        </div>
+        <span class="status"><i></i> JDBC 已连接</span>
+      </header>
+
+      <section class="panel demo-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">TRY IT</p>
+            <h2>触发一条审计事件</h2>
+          </div>
+          <p class="muted">成功和失败操作都会进入下方事件列表</p>
+        </div>
+        <div class="operation-form">
+          <label>操作者 ID<input id="actor" value="demo-user" maxlength="80" /></label>
+          <label>操作者名称<input id="actor-name" value="示例用户" maxlength="80" /></label>
+          <label>目标 ID<input id="target" value="record-1001" maxlength="100" /></label>
+          <div class="actions">
+            <button id="success-button" class="button primary">执行成功操作</button>
+            <button id="failure-button" class="button danger">模拟失败操作</button>
+          </div>
+        </div>
+        <p id="notice" class="notice" aria-live="polite"></p>
+      </section>
+
+      <section class="panel events-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">AUDIT LOG</p>
+            <h2>事件记录</h2>
+          </div>
+          <button id="refresh-button" class="button secondary">刷新</button>
+        </div>
+
+        <div class="filters">
+          <label>操作者<input id="actor-filter" placeholder="全部操作者" /></label>
+          <label>结果
+            <select id="outcome-filter">
+              <option value="">全部</option>
+              <option value="SUCCESS">成功</option>
+              <option value="FAILURE">失败</option>
+            </select>
+          </label>
+          <button id="filter-button" class="button secondary">筛选</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>发生时间</th><th>操作者</th><th>操作</th><th>结果</th><th>耗时</th><th>请求</th><th>HTTP 状态</th><th>异常</th><th>客户端 IP</th><th>User-Agent</th></tr>
+            </thead>
+            <tbody id="event-rows"></tbody>
+          </table>
+          <div id="empty-state" class="empty-state">暂无审计事件，先执行一次操作。</div>
+        </div>
+        <footer class="pagination">
+          <span id="page-summary">共 0 条</span>
+          <div>
+            <button id="previous-button" class="button secondary">上一页</button>
+            <button id="next-button" class="button secondary">下一页</button>
+          </div>
+        </footer>
+      </section>
+      <p class="footnote">演示页面使用内存数据库，重启后记录会清空。</p>
+    </main>
+    <script src="/app.js?v=4" defer></script>
+  </body>
+</html>
