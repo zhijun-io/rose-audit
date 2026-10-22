@@ -9,21 +9,52 @@
         <version>4.1.1</version>
         <relativePath/>
     </parent>
+
     <groupId>io.zhijun</groupId>
     <artifactId>rose-audit-spring-boot-starter-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Rose Audit Spring Boot Starter Parent</name>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+        </license>
+    </licenses>
+
+    <scm>
+        <url>https://github.com/zhijun-io/rose-audit-spring-boot-starter</url>
+        <connection>scm:git:git://github.com/zhijun-io/rose-audit-spring-boot-starter.git</connection>
+        <developerConnection>scm:git:git@github.com:zhijun-io/rose-audit-spring-boot-starter.git</developerConnection>
+    </scm>
+
+    <developers>
+        <developer>
+            <id>zhijunio</id>
+            <name>zhijunio</name>
+            <email>zhijun.lab@gmail.com</email>
+            <roles>
+                <role>lead</role>
+            </roles>
+        </developer>
+    </developers>
+
     <properties>
         <java.version>25</java.version>
         <maven.compiler.release>25</maven.compiler.release>
+
+        <maven-gpg-plugin.version>3.2.7</maven-gpg-plugin.version>
+        <central-publishing-maven-plugin.version>0.10.0</central-publishing-maven-plugin.version>
     </properties>
+
     <modules>
         <module>rose-audit-spring-boot-autoconfigure</module>
         <module>rose-audit-spring-boot-jdbc</module>
         <module>rose-audit-spring-boot-starter</module>
         <module>rose-audit-sample</module>
     </modules>
+
     <dependencyManagement>
         <dependencies>
             <dependency>
@@ -56,6 +87,43 @@
                     </java>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <version>${central-publishing-maven-plugin.version}</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <publishingServerId>central</publishingServerId>
+                    <autoPublish>true</autoPublish>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>${maven-gpg-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                        <configuration>
+                            <gpgArguments>
+                                <arg>--pinentry-mode</arg>
+                                <arg>loopback</arg>
+                            </gpgArguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>central</id>
+            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
 </project>
