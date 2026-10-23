@@ -36,7 +36,7 @@ jobs:
       version: ${{ inputs.version }}
       next-version: ${{ inputs.next-version }}
       java-version: '25'
-      skip-tests: ${{ inputs.skip_tests || false }}
+      skip-tests: ${{ inputs['skip-tests'] || false }}
     secrets:
       MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
       MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
