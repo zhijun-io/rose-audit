@@ -12,17 +12,18 @@ runnable sample application.
 
 ## Features
 
-- Record successful and failed controller operations with `ControllerName.methodName` action names.
+- Record completed Spring MVC requests with `METHOD /route/template` action names.
 - Record scheduled jobs and Kafka, RabbitMQ, or JMS listener entry points.
-- Record authentication events from filter-based login flows.
+- Record Spring Security authentication success and failure events when those events are published. Use
+  `AuditAuthenticationRecorder` for custom flows that do not publish standard events.
 - Capture actor, tenant, request and trace identifiers, operation duration, and available HTTP request metadata.
-- Consume audit events asynchronously after the business transaction completes. Use the included JDBC consumer or
+- Consume observed execution facts asynchronously, regardless of business transaction rollback. Use the included JDBC consumer or
   provide a consumer for another destination such as a message queue.
 - Store and search events with JDBC and Spring Data pagination.
 - Expose optional Micrometer metrics and a browser-based sample interface.
 
 The starter does not capture request bodies, headers, query strings, or full method arguments and return values by
-default.
+default. Query parameters can only be captured by an explicit allowlist.
 
 ## Requirements and technology
 
@@ -40,25 +41,42 @@ Maven coordinates: `io.zhijun:rose-audit-spring-boot-starter`.
 rose:
   audit:
     enabled: true
+    error:
+      capture-message: false
     http:
-      capture-query-string: false
+      include:
+        - /auth/**
+      query-parameters-allowlist: []
     jdbc:
       validate-schema: true
 ```
 
-`enabled=false` stops recording and leaves JDBC search in place. Query strings are stored only when
-`capture-query-string` is `true`. Apply `classpath:db/audit-schema-postgresql.sql` before startup; the JDBC store fails
-startup when `audit_event` is missing unless `validate-schema` is `false`.
+`enabled=false` stops recording and leaves JDBC search in place. By default, only mapped MVC controller requests are
+recorded. `http.include` adds matching non-controller endpoints; default exclusions win over includes. Configure
+`http.exclude` to replace the default exclusion list. Query values are stored only for names in
+`http.query-parameters-allowlist`. Apply `classpath:db/audit-schema-postgresql.sql` to a new database. Existing tables
+must apply `classpath:db/audit-schema-postgresql-v2.sql` before the new writer starts. The script lives outside
+Flyway's `db/migration` path, so adding this library does not change the schema by itself. It marks legacy event
+types as `UNKNOWN` and makes duration nullable. Stop the previous version first: it cannot read those values, and a
+mixed rolling upgrade is not supported.
+The previous `rose.audit.http.capture-query-string` setting is unsupported; use the explicit query parameter allowlist.
+The new `AuditEvent` constructor requires event ID and type; update consumers that construct events directly and
+exhaustive `Outcome` switches.
+Exception messages are omitted by default because they may contain sensitive values. Set
+`rose.audit.error.capture-message` to `true` only after reviewing the messages produced by your application.
 
 `actorId` is the account id and `actorName` is the display name. Without an `AuditActorProvider`, Spring Security fills
-only `actorName` from the authenticated principal name. Anonymous sessions and non-HTTP work have neither. A failed
-login stores the submitted username as `actorName` and leaves `actorId` empty. Call `AuditAuthenticationRecorder` from
-login handlers. Search is not limited to the current tenant.
+only `actorName` from the authenticated principal name when an MVC handler runs. An included logout request keeps that
+name from the standard logout event after the security context is cleared. Anonymous sessions and non-HTTP work have
+neither. A failed login never stores the unverified submitted username as the authenticated actor. Avoid manually
+recording a flow that already publishes standard Spring Security authentication events, or the attempt will be
+recorded twice. Search is not limited to the current tenant.
 
 The default queue holds 200 events, does not retry, and drops overflow. Supply an `AuditEventConsumer` when loss is
-unacceptable, and keep `auditEventTaskExecutor` asynchronous. Same-class calls are not audited. Async controller
-returns are recorded when the method returns. `ErrorController` types are skipped. Client IP is the servlet remote
-address. The sample listens on `127.0.0.1` and has no authentication.
+unacceptable, and keep `auditEventTaskExecutor` asynchronous. Controller requests are measured through Servlet
+completion, including asynchronous MVC completion; method return is not treated as request completion. Scheduler and
+message listener calls are recorded at the intercepted method boundary. Client IP is the servlet remote address. The
+sample listens on `127.0.0.1` and has no authentication.
 
 ## Run the sample
 
