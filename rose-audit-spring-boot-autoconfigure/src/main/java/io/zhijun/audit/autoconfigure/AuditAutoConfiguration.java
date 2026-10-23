@@ -13,6 +13,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.task.TaskExecutor;
@@ -28,9 +29,12 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  *
  * <p>A replacement executor should schedule tasks asynchronously; an inline executor makes consumption run on the
  * transaction-completion thread. The JDBC consumer starts its own transaction when it writes an event.
+ *
+ * <p>{@code rose.audit.enabled=false} stops recording.
  */
 @AutoConfiguration
 @ConditionalOnClass(name = "org.aspectj.lang.annotation.Aspect")
+@ConditionalOnProperty(prefix = "rose.audit", name = "enabled", matchIfMissing = true)
 public class AuditAutoConfiguration {
     @Bean
     DefaultAuditEventPublisher auditEventPublisher(

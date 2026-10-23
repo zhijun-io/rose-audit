@@ -33,6 +33,16 @@ The starter does not capture request bodies, headers, or full method arguments a
 
 Maven coordinates: `io.zhijun:rose-audit-spring-boot-starter`.
 
+## Configuration
+
+```yaml
+rose:
+  audit:
+    enabled: true
+```
+
+`enabled=false` stops recording and leaves JDBC search in place.
+
 ## Run the sample
 
 Start the PostgreSQL container, build the sample, and run it:

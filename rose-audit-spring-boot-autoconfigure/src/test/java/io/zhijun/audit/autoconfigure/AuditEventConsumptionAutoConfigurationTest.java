@@ -44,6 +44,18 @@ class AuditEventConsumptionAutoConfigurationTest {
     }
 
     @Test
+    void doesNotRecordWhenAuditIsDisabled() {
+        contextRunner
+                .withPropertyValues("rose.audit.enabled=false")
+                .withBean(AuditEventConsumer.class, () -> mock(AuditEventConsumer.class))
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(AuditEventListener.class);
+                    assertThat(context).doesNotHaveBean(AuditEntryPointAdvisor.class);
+                    assertThat(context).doesNotHaveBean(DefaultAuditEventPublisher.class);
+                });
+    }
+
+    @Test
     void doesNotCreateAnExecutorWithoutAnyConsumer() {
         contextRunner.run(context -> {
             assertThat(context).doesNotHaveBean(AuditEventListener.class);

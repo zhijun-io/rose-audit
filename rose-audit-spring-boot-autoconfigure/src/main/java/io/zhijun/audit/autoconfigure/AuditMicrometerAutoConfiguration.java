@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -21,6 +22,7 @@ import org.springframework.context.annotation.Configuration;
             "org.springframework.boot.micrometer.metrics.autoconfigure.MetricsAutoConfiguration",
             "org.springframework.boot.micrometer.metrics.autoconfigure.CompositeMeterRegistryAutoConfiguration"
         })
+@ConditionalOnProperty(prefix = "rose.audit", name = "enabled", matchIfMissing = true)
 public class AuditMicrometerAutoConfiguration {
     /** Isolates Micrometer references so applications without Micrometer can still load the core auto-configuration. */
     @Configuration(proxyBeanMethods = false)

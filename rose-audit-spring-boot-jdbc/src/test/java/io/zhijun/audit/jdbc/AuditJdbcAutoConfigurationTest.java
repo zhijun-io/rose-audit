@@ -35,6 +35,14 @@ class AuditJdbcAutoConfigurationTest {
     }
 
     @Test
+    void keepsSearchAndSkipsTheDefaultConsumerWhenAuditIsDisabled() {
+        contextRunner.withPropertyValues("rose.audit.enabled=false").run(context -> {
+            assertThat(context).hasSingleBean(AuditEventService.class);
+            assertThat(context).doesNotHaveBean(AuditEventConsumer.class);
+        });
+    }
+
+    @Test
     void backsOffWhenApplicationProvidesAnotherConsumer() {
         AuditEventConsumer customConsumer = mock(AuditEventConsumer.class);
         contextRunner.withBean(AuditEventConsumer.class, () -> customConsumer).run(context -> {
