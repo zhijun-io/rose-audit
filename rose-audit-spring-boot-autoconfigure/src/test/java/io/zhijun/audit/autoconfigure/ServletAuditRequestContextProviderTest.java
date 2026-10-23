@@ -38,13 +38,15 @@ class ServletAuditRequestContextProviderTest {
     }
 
     @Test
-    void omitsTheQueryStringUnlessCaptureIsEnabled() {
+    void retainsOnlyAllowlistedQueryParameters() {
         var request = new MockHttpServletRequest("GET", "/orders");
-        request.setQueryString("token=secret");
+        request.setQueryString("token=secret&page=2&q=active%20orders");
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request, new MockHttpServletResponse()));
 
         assertThat(provider.currentContext().queryString()).isNull();
-        assertThat(new ServletAuditRequestContextProvider(true).currentContext().queryString())
-                .isEqualTo("token=secret");
+        assertThat(new ServletAuditRequestContextProvider(java.util.List.of("page", "q"))
+                        .currentContext()
+                        .queryString())
+                .isEqualTo("page=2&q=active%20orders");
     }
 }

@@ -1,5 +1,9 @@
 io.zhijun.audit.autoconfigure.AuditAutoConfiguration
+io.zhijun.audit.autoconfigure.AuditHttpAutoConfiguration
+io.zhijun.audit.autoconfigure.AuditMvcAutoConfiguration
 io.zhijun.audit.autoconfigure.AuditSecurityActorAutoConfiguration
 io.zhijun.audit.autoconfigure.AuditWebAutoConfiguration
 io.zhijun.audit.autoconfigure.AuditAuthenticationAutoConfiguration
+io.zhijun.audit.autoconfigure.AuditSecurityEventsAutoConfiguration
+io.zhijun.audit.autoconfigure.AuditLogoutHttpActorAutoConfiguration
 io.zhijun.audit.autoconfigure.AuditMicrometerAutoConfiguration
