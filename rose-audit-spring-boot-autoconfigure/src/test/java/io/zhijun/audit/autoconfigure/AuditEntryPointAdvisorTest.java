@@ -21,9 +21,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.webmvc.error.ErrorController;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -123,6 +125,24 @@ class AuditEntryPointAdvisorTest {
                 .containsExactly("AsyncController.handle", AuditEvent.Outcome.SUCCESS);
     }
 
+    @Test
+    void doesNotAuditPublicControllerMethodsWithoutARequestMapping() throws Exception {
+        var target = new ComposedController();
+        setHandler(target, ComposedController.class.getMethod("helper"));
+        var proxyFactory = new ProxyFactory(target);
+        proxyFactory.addAdvisor(advisor());
+
+        ((ComposedController) proxyFactory.getProxy()).helper();
+
+        assertThat(events).isEmpty();
+    }
+
+    @Test
+    void doesNotAuditErrorControllers() throws Exception {
+        assertThat(advisor().matches(ErrorPageController.class.getMethod("error"), ErrorPageController.class))
+                .isFalse();
+    }
+
     private void setHandler(Object target, Method method) {
         var request = new MockHttpServletRequest("GET", "/run");
         request.setAttribute(HandlerMapping.BEST_MATCHING_HANDLER_ATTRIBUTE, new HandlerMethod(target, method));
@@ -158,7 +178,10 @@ class AuditEntryPointAdvisorTest {
 
     @ComposedControllerAnnotation
     static class ComposedController {
+        @GetMapping("/handle")
         public void handle() {}
+
+        public void helper() {}
     }
 
     static class ScheduledOperations {
@@ -168,6 +191,7 @@ class AuditEntryPointAdvisorTest {
 
     @RestController
     static class FailingController {
+        @GetMapping("/fail")
         public void fail() {
             throw new IllegalStateException("operation failed");
         }
@@ -175,8 +199,15 @@ class AuditEntryPointAdvisorTest {
 
     @RestController
     static class AsyncController {
+        @GetMapping("/async")
         public CompletableFuture<String> handle() {
             return new CompletableFuture<>();
         }
+    }
+
+    @RestController
+    static class ErrorPageController implements ErrorController {
+        @GetMapping("/error")
+        public void error() {}
     }
 }

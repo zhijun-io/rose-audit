@@ -50,7 +50,7 @@ rose:
 `actorId` is the account id and `actorName` is the display name. Without an `AuditActorProvider`, Spring Security fills
 only `actorName` from the authenticated principal name. Anonymous sessions and non-HTTP work have neither. A failed
 login stores the submitted username as `actorName` and leaves `actorId` empty. Call `AuditAuthenticationRecorder` from
-login handlers.
+login handlers. `ErrorController` types are skipped.
 
 ## Run the sample
 

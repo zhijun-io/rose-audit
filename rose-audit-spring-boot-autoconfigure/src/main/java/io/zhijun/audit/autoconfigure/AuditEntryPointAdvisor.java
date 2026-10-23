@@ -20,8 +20,9 @@ import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerMapping;
 
 /**
- * Audits active MVC handlers and public methods annotated with supported scheduler or message-listener annotations.
- * Framework annotations are matched by name, so Kafka, RabbitMQ, and JMS integrations remain optional dependencies.
+ * Audits active MVC request mappings and public methods annotated with supported scheduler or message-listener
+ * annotations. Framework annotations are matched by name, so Kafka, RabbitMQ, and JMS integrations remain optional
+ * dependencies. Error controllers are skipped so a container error dispatch is not recorded as a successful call.
  * Apply listener annotations only to entry methods; the services they call should not be audited automatically.
  */
 final class AuditEntryPointAdvisor extends StaticMethodMatcherPointcutAdvisor {
@@ -37,6 +38,9 @@ final class AuditEntryPointAdvisor extends StaticMethodMatcherPointcutAdvisor {
             "org.springframework.jms.annotation.JmsListeners");
     private static final Set<String> CONTROLLER_ANNOTATIONS = Set.of(
             "org.springframework.stereotype.Controller", "org.springframework.web.bind.annotation.RestController");
+    private static final Set<String> REQUEST_MAPPING_ANNOTATIONS =
+            Set.of("org.springframework.web.bind.annotation.RequestMapping");
+    private static final String ERROR_CONTROLLER = "org.springframework.boot.webmvc.error.ErrorController";
 
     private final DefaultAuditEventPublisher publisher;
     private final AuditActorProvider actorProvider;
@@ -52,9 +56,12 @@ final class AuditEntryPointAdvisor extends StaticMethodMatcherPointcutAdvisor {
 
     @Override
     public boolean matches(Method method, Class<?> targetClass) {
-        return Modifier.isPublic(method.getModifiers())
-                && (hasAnnotation(method, ENTRY_POINT_ANNOTATIONS)
-                        || hasAnnotation(targetClass, CONTROLLER_ANNOTATIONS));
+        if (!Modifier.isPublic(method.getModifiers()) || isErrorController(targetClass)) {
+            return false;
+        }
+        return hasAnnotation(method, ENTRY_POINT_ANNOTATIONS)
+                || (hasAnnotation(targetClass, CONTROLLER_ANNOTATIONS)
+                        && hasAnnotation(method, REQUEST_MAPPING_ANNOTATIONS));
     }
 
     private Object record(MethodInvocation invocation) throws Throwable {
@@ -90,6 +97,18 @@ final class AuditEntryPointAdvisor extends StaticMethodMatcherPointcutAdvisor {
         } catch (RuntimeException publishFailure) {
             LOGGER.warn("Audit event publishing failed (action={}, outcome={})", action, outcome, publishFailure);
         }
+    }
+
+    private boolean isErrorController(Class<?> targetClass) {
+        if (ERROR_CONTROLLER.equals(targetClass.getName())) {
+            return true;
+        }
+        for (Class<?> type : ClassUtils.getAllInterfacesForClassAsSet(targetClass)) {
+            if (ERROR_CONTROLLER.equals(type.getName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean hasAnnotation(java.lang.reflect.AnnotatedElement element, Set<String> annotationNames) {
