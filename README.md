@@ -53,7 +53,12 @@ startup when `audit_event` is missing unless `validate-schema` is `false`.
 `actorId` is the account id and `actorName` is the display name. Without an `AuditActorProvider`, Spring Security fills
 only `actorName` from the authenticated principal name. Anonymous sessions and non-HTTP work have neither. A failed
 login stores the submitted username as `actorName` and leaves `actorId` empty. Call `AuditAuthenticationRecorder` from
-login handlers. `ErrorController` types are skipped. Search is not limited to the current tenant.
+login handlers. Search is not limited to the current tenant.
+
+The default queue holds 200 events, does not retry, and drops overflow. Supply an `AuditEventConsumer` when loss is
+unacceptable, and keep `auditEventTaskExecutor` asynchronous. Same-class calls are not audited. Async controller
+returns are recorded when the method returns. `ErrorController` types are skipped. Client IP is the servlet remote
+address. The sample listens on `127.0.0.1` and has no authentication.
 
 ## Run the sample
 
