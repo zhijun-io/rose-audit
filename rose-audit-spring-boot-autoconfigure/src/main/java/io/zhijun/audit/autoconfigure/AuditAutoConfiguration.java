@@ -46,7 +46,7 @@ public class AuditAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     AuditActorProvider auditActorProvider() {
-        return () -> "system";
+        return () -> null;
     }
 
     @Bean

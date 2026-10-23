@@ -3,6 +3,7 @@ package io.zhijun.audit.autoconfigure;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
+import io.zhijun.audit.AuditActorProvider;
 import io.zhijun.audit.AuditEventConsumer;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -41,6 +42,13 @@ class AuditEventConsumptionAutoConfigurationTest {
                     assertThat(context.getBean("auditEventTaskExecutor")).isSameAs(customExecutor);
                     assertThat(context).doesNotHaveBean(ThreadPoolTaskExecutor.class);
                 });
+    }
+
+    @Test
+    void leavesTheActorEmptyWhenTheApplicationDoesNotProvideOne() {
+        contextRunner.run(
+                context -> assertThat(context.getBean(AuditActorProvider.class).currentActorId())
+                        .isNull());
     }
 
     @Test

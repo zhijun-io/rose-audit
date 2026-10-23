@@ -23,14 +23,14 @@ public final class AuditAuthenticationRecorder {
         request.setAttribute(STARTED_AT_ATTRIBUTE, System.nanoTime());
     }
 
-    /** Record success using the caller-defined action name, principal ID, and optional display-name snapshot. */
+    /** Record success using the caller-defined action, account id, and display name. */
     public void recordSuccess(String action, String actorId, String actorName, HttpServletRequest request) {
         publish(action, actorId, actorName, AuditEvent.Outcome.SUCCESS, null, durationMs(request));
     }
 
-    /** Record failure using the submitted username as actorId when no account ID could be resolved. */
+    /** Record failure with the submitted username as the display name. The account id stays empty. */
     public void recordFailure(String action, String attemptedUsername, Throwable failure, HttpServletRequest request) {
-        publish(action, attemptedUsername, null, AuditEvent.Outcome.FAILURE, failure, durationMs(request));
+        publish(action, null, attemptedUsername, AuditEvent.Outcome.FAILURE, failure, durationMs(request));
     }
 
     private void publish(

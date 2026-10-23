@@ -78,8 +78,14 @@ class AuditAuthenticationRecorderTest {
         var event = forClass(AuditEvent.class);
         verify(events).publishEvent(event.capture());
         assertThat(event.getValue())
-                .extracting(AuditEvent::actorId, AuditEvent::action, AuditEvent::outcome, AuditEvent::errorType)
+                .extracting(
+                        AuditEvent::actorId,
+                        AuditEvent::actorName,
+                        AuditEvent::action,
+                        AuditEvent::outcome,
+                        AuditEvent::errorType)
                 .containsExactly(
+                        null,
                         "unknown-user",
                         "auth.login.failure",
                         AuditEvent.Outcome.FAILURE,
