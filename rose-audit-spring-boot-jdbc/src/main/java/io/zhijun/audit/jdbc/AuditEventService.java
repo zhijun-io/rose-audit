@@ -12,6 +12,9 @@ public interface AuditEventService {
     /** Stores one audit event. The default JDBC implementation uses an independent transaction for this write. */
     void create(AuditEvent event);
 
-    /** Returns a page of events matching the optional criteria and Spring Data page and sort request. */
+    /**
+     * Returns a page of events matching the optional criteria and Spring Data page and sort request. The criteria are
+     * not limited to the current tenant; callers that store more than one tenant must pass {@code tenantId}.
+     */
     Page<AuditEventRecord> search(AuditEventQueryRequest filter, Pageable pageable);
 }

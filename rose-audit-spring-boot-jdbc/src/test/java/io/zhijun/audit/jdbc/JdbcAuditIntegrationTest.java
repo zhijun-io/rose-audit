@@ -8,6 +8,7 @@ import io.zhijun.audit.AuditActorProvider;
 import io.zhijun.audit.AuditEvent;
 import io.zhijun.audit.AuditTenantProvider;
 import java.time.Duration;
+import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -121,6 +123,48 @@ class JdbcAuditIntegrationTest {
                 .isZero();
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM audit_event", Integer.class))
                 .isZero();
+    }
+
+    @Test
+    void searchesByTenantOutcomeAndHalfOpenTimeRange() {
+        Instant first = Instant.parse("2026-01-01T00:00:00Z");
+        Instant second = Instant.parse("2026-01-02T00:00:00Z");
+        auditEventService.create(storedEvent("tenant-a", "alpha", AuditEvent.Outcome.SUCCESS, first));
+        auditEventService.create(storedEvent("tenant-b", "beta", AuditEvent.Outcome.FAILURE, second));
+
+        var matches = auditEventService.search(
+                new AuditEventQueryRequest(
+                        "tenant-a", null, null, null, null, AuditEvent.Outcome.SUCCESS, first, second),
+                PageRequest.of(0, 20, Sort.by("occurredAt")));
+        var everything = auditEventService.search(AuditEventQueryRequest.all(), PageRequest.of(0, 20));
+
+        assertThat(matches.getTotalElements()).isEqualTo(1);
+        assertThat(matches.getContent())
+                .singleElement()
+                .extracting(AuditEventRecord::action)
+                .isEqualTo("alpha");
+        assertThat(everything.getTotalElements()).isEqualTo(2);
+    }
+
+    private AuditEvent storedEvent(String tenantId, String action, AuditEvent.Outcome outcome, Instant occurredAt) {
+        return new AuditEvent(
+                occurredAt,
+                tenantId,
+                null,
+                null,
+                "actor",
+                null,
+                action,
+                outcome,
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 
     private AuditEventQueryRequest filterFor(String action) {

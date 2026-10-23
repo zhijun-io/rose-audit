@@ -53,7 +53,7 @@ startup when `audit_event` is missing unless `validate-schema` is `false`.
 `actorId` is the account id and `actorName` is the display name. Without an `AuditActorProvider`, Spring Security fills
 only `actorName` from the authenticated principal name. Anonymous sessions and non-HTTP work have neither. A failed
 login stores the submitted username as `actorName` and leaves `actorId` empty. Call `AuditAuthenticationRecorder` from
-login handlers. `ErrorController` types are skipped.
+login handlers. `ErrorController` types are skipped. Search is not limited to the current tenant.
 
 ## Run the sample
 
