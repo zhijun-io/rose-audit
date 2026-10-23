@@ -59,4 +59,18 @@ class AuditEventFactoryTest {
         assertThat(event.userAgent()).isNull();
         assertThat(event.errorMessage()).isEqualTo("failed");
     }
+
+    @Test
+    void omitsDefaultOkStatusWhenTheOperationFailed() {
+        var beanFactory = new DefaultListableBeanFactory();
+        beanFactory.registerSingleton("requestContextProvider", (AuditRequestContextProvider)
+                () -> new AuditRequestContext("GET", "/users", null, 200, null, null));
+        var factory = new AuditEventFactory(
+                () -> null, () -> null, beanFactory.getBeanProvider(AuditRequestContextProvider.class));
+
+        AuditEvent event = factory.create(
+                null, null, "action", AuditEvent.Outcome.FAILURE, 1L, new IllegalStateException("failed"));
+
+        assertThat(event.httpStatus()).isNull();
+    }
 }
