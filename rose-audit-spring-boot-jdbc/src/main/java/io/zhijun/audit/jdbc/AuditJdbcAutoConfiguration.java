@@ -43,25 +43,12 @@ public class AuditJdbcAutoConfiguration {
         return auditEventService::create;
     }
 
+    /** Fails startup when the built-in JDBC store is active and {@code audit_event} cannot be queried. */
     @Bean
     @ConditionalOnProperty(prefix = "rose.audit.jdbc", name = "validate-schema", matchIfMissing = true)
-    AuditSchemaValidator auditSchemaValidator(AuditEventService auditEventService, JdbcTemplate jdbcTemplate) {
-        return new AuditSchemaValidator(auditEventService, jdbcTemplate);
-    }
-
-    /** Fails startup when the built-in JDBC store is active and {@code audit_event} cannot be queried. */
-    private static final class AuditSchemaValidator implements SmartInitializingSingleton {
-        private final AuditEventService service;
-        private final JdbcTemplate jdbcTemplate;
-
-        private AuditSchemaValidator(AuditEventService service, JdbcTemplate jdbcTemplate) {
-            this.service = service;
-            this.jdbcTemplate = jdbcTemplate;
-        }
-
-        @Override
-        public void afterSingletonsInstantiated() {
-            if (!JdbcAuditEventService.class.isAssignableFrom(AopProxyUtils.ultimateTargetClass(service))) {
+    SmartInitializingSingleton auditSchemaValidator(AuditEventService auditEventService, JdbcTemplate jdbcTemplate) {
+        return () -> {
+            if (!JdbcAuditEventService.class.isAssignableFrom(AopProxyUtils.ultimateTargetClass(auditEventService))) {
                 return;
             }
             try {
@@ -71,6 +58,6 @@ public class AuditJdbcAutoConfiguration {
                         "audit_event table was not found. Apply classpath:db/audit-schema-postgresql.sql before starting.",
                         exception);
             }
-        }
+        };
     }
 }

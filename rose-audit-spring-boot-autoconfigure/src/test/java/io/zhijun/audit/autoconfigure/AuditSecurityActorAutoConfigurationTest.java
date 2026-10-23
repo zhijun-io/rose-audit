@@ -38,15 +38,21 @@ class AuditSecurityActorAutoConfigurationTest {
 
     @Test
     void leavesAnonymousAndMissingSessionsEmpty() {
-        assertThat(new SecurityContextAuditActorProvider().currentActorId()).isNull();
-        assertThat(new SecurityContextAuditActorProvider().currentActorName()).isNull();
+        contextRunner.run(context -> {
+            AuditActorProvider actor = context.getBean(AuditActorProvider.class);
+            assertThat(actor.currentActorId()).isNull();
+            assertThat(actor.currentActorName()).isNull();
+        });
 
         SecurityContextHolder.getContext()
                 .setAuthentication(new AnonymousAuthenticationToken(
                         "key", "anonymousUser", AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS")));
 
-        assertThat(new SecurityContextAuditActorProvider().currentActorId()).isNull();
-        assertThat(new SecurityContextAuditActorProvider().currentActorName()).isNull();
+        contextRunner.run(context -> {
+            AuditActorProvider actor = context.getBean(AuditActorProvider.class);
+            assertThat(actor.currentActorId()).isNull();
+            assertThat(actor.currentActorName()).isNull();
+        });
     }
 
     @Test
