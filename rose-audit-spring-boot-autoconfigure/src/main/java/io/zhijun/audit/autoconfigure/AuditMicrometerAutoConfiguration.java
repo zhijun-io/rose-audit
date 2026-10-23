@@ -36,14 +36,12 @@ public class AuditMicrometerAutoConfiguration {
             return new AuditEventListener.Metrics() {
                 @Override
                 public void queued(AuditEvent.Outcome outcome) {
-                    recordSafely(() -> counter(registry, "rose.audit.events.queued", outcome)
-                            .increment());
+                    increment(registry, "rose.audit.events.queued", outcome);
                 }
 
                 @Override
                 public void consumed(AuditEvent.Outcome outcome) {
-                    recordSafely(() -> counter(registry, "rose.audit.events.consumed", outcome)
-                            .increment());
+                    increment(registry, "rose.audit.events.consumed", outcome);
                 }
 
                 @Override
@@ -71,7 +69,9 @@ public class AuditMicrometerAutoConfiguration {
             try {
                 recording.run();
             } catch (RuntimeException metricsFailure) {
-                LOGGER.warn("Could not record audit metrics", metricsFailure);
+                LOGGER.warn(
+                        "Could not record audit metrics (cause={})",
+                        metricsFailure.getClass().getName());
             }
         }
 
@@ -80,6 +80,10 @@ public class AuditMicrometerAutoConfiguration {
                     .description("Audit event delivery count")
                     .tag("outcome", tag(outcome))
                     .register(registry);
+        }
+
+        private static void increment(MeterRegistry registry, String name, AuditEvent.Outcome outcome) {
+            recordSafely(() -> counter(registry, name, outcome).increment());
         }
 
         private static String tag(AuditEvent.Outcome outcome) {

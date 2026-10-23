@@ -61,6 +61,8 @@ class DefaultAuditEventPublisherTest {
 
     private AuditEvent event(AuditEvent.Outcome outcome) {
         return new AuditEvent(
+                "test-event",
+                AuditEvent.Type.OPERATION,
                 Instant.parse("2026-10-21T00:00:00Z"),
                 "tenant-test",
                 "request-test",

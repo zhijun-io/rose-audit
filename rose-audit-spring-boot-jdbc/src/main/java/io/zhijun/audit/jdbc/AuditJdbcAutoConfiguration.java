@@ -19,8 +19,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * Configures JDBC audit persistence when a {@link DataSource} is available. The default {@link AuditEventConsumer}
  * delegates event creation to {@link AuditEventService}; an application-provided consumer replaces it while the JDBC
- * query service remains available. The default consumer calls the service only after the business transaction
- * completes; the service writes the event in a separate transaction. Supplying a custom consumer replaces only
+ * query service remains available. Execution-fact events are consumed independently of the business transaction; the
+ * service writes each event in a separate transaction. Supplying a custom consumer replaces only
  * consumption and does not disable JDBC queries. {@code rose.audit.enabled=false} skips the default consumer and leaves
  * search available.
  */
@@ -52,10 +52,10 @@ public class AuditJdbcAutoConfiguration {
                 return;
             }
             try {
-                jdbcTemplate.queryForList("SELECT 1 FROM audit_event WHERE 1 = 0");
+                jdbcTemplate.queryForList("SELECT event_id, event_type, duration_ms FROM audit_event WHERE 1 = 0");
             } catch (DataAccessException exception) {
                 throw new IllegalStateException(
-                        "audit_event table was not found. Apply classpath:db/audit-schema-postgresql.sql before starting.",
+                        "Could not query the current audit_event schema. Apply classpath:db/audit-schema-postgresql.sql to a new database or classpath:db/audit-schema-postgresql-v2.sql to an existing database before starting, or set rose.audit.jdbc.validate-schema=false.",
                         exception);
             }
         };

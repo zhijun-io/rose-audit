@@ -21,10 +21,17 @@ class AuditEventFactoryTest {
         var factory = new AuditEventFactory(
                 () -> "tenant-1",
                 () -> new AuditCorrelationContext("request-1", "trace-1"),
-                beanFactory.getBeanProvider(AuditRequestContextProvider.class));
+                beanFactory.getBeanProvider(AuditRequestContextProvider.class),
+                false);
 
-        AuditEvent event =
-                factory.create("actor-1", "Alice", "user.update\nforged", AuditEvent.Outcome.SUCCESS, 123L, null);
+        AuditEvent event = factory.create(
+                AuditEvent.Type.OPERATION,
+                "actor-1",
+                "Alice",
+                "user.update\nforged",
+                AuditEvent.Outcome.SUCCESS,
+                123L,
+                null);
 
         assertThat(event.tenantId()).isEqualTo("tenant-1");
         assertThat(event.requestId()).isEqualTo("request-1");
@@ -45,10 +52,16 @@ class AuditEventFactoryTest {
     void usesEmptyContextValuesWhenProvidersAreMissingOrReturnNull() {
         var beanFactory = new DefaultListableBeanFactory();
         var factory = new AuditEventFactory(
-                () -> null, () -> null, beanFactory.getBeanProvider(AuditRequestContextProvider.class));
+                () -> null, () -> null, beanFactory.getBeanProvider(AuditRequestContextProvider.class), false);
 
         AuditEvent event = factory.create(
-                null, null, "action", AuditEvent.Outcome.FAILURE, 0L, new IllegalStateException("failed"));
+                AuditEvent.Type.OPERATION,
+                null,
+                null,
+                "action",
+                AuditEvent.Outcome.FAILURE,
+                0L,
+                new IllegalStateException("failed"));
 
         assertThat(event.tenantId()).isNull();
         assertThat(event.requestId()).isNull();
@@ -57,20 +70,45 @@ class AuditEventFactoryTest {
         assertThat(event.actorName()).isNull();
         assertThat(event.clientIp()).isNull();
         assertThat(event.userAgent()).isNull();
-        assertThat(event.errorMessage()).isEqualTo("failed");
+        assertThat(event.errorMessage()).isNull();
     }
 
     @Test
-    void omitsDefaultOkStatusWhenTheOperationFailed() {
+    void keepsObservedOkStatusWhenTheOperationFailed() {
         var beanFactory = new DefaultListableBeanFactory();
         beanFactory.registerSingleton("requestContextProvider", (AuditRequestContextProvider)
                 () -> new AuditRequestContext("GET", "/users", null, 200, null, null));
         var factory = new AuditEventFactory(
-                () -> null, () -> null, beanFactory.getBeanProvider(AuditRequestContextProvider.class));
+                () -> null, () -> null, beanFactory.getBeanProvider(AuditRequestContextProvider.class), false);
 
         AuditEvent event = factory.create(
-                null, null, "action", AuditEvent.Outcome.FAILURE, 1L, new IllegalStateException("failed"));
+                AuditEvent.Type.OPERATION,
+                null,
+                null,
+                "action",
+                AuditEvent.Outcome.FAILURE,
+                1L,
+                new IllegalStateException("failed"));
 
-        assertThat(event.httpStatus()).isNull();
+        assertThat(event.httpStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void stripsControlCharactersFromExternalText() {
+        var beanFactory = new DefaultListableBeanFactory();
+        var factory = new AuditEventFactory(
+                () -> null, () -> null, beanFactory.getBeanProvider(AuditRequestContextProvider.class), false);
+
+        AuditEvent event = factory.create(
+                AuditEvent.Type.OPERATION,
+                null,
+                "al\u0007ice",
+                "user\u0001update",
+                AuditEvent.Outcome.SUCCESS,
+                1L,
+                null);
+
+        assertThat(event.actorName()).isEqualTo("alice");
+        assertThat(event.action()).isEqualTo("userupdate");
     }
 }

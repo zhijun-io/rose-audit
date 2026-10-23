@@ -49,7 +49,8 @@ class AuditJdbcAutoConfigurationTest {
                 .withBean(JdbcTemplate.class, () -> jdbcTemplate)
                 .run(context -> {
                     assertThat(context).hasFailed();
-                    assertThat(context.getStartupFailure()).hasStackTraceContaining("audit_event table was not found");
+                    assertThat(context.getStartupFailure())
+                            .hasStackTraceContaining("Could not query the current audit_event schema");
                 });
     }
 
@@ -89,6 +90,8 @@ class AuditJdbcAutoConfigurationTest {
 
     private AuditEvent event() {
         return new AuditEvent(
+                "test-event",
+                AuditEvent.Type.OPERATION,
                 Instant.parse("2026-10-21T00:00:00Z"),
                 null,
                 null,
@@ -97,7 +100,7 @@ class AuditJdbcAutoConfigurationTest {
                 null,
                 "test.action",
                 AuditEvent.Outcome.SUCCESS,
-                0,
+                0L,
                 null,
                 null,
                 null,

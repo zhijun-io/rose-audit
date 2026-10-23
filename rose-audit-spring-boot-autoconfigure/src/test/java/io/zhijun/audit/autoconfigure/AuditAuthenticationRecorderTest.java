@@ -39,7 +39,7 @@ class AuditAuthenticationRecorderTest {
         var authenticationFailure = new IllegalArgumentException("invalid credentials");
 
         assertThatCode(() -> recorder.recordFailure(
-                        "auth.login.failure", "unknown-user", authenticationFailure, new MockHttpServletRequest()))
+                        "auth.login.failure", authenticationFailure, new MockHttpServletRequest()))
                 .doesNotThrowAnyException();
     }
 
@@ -64,16 +64,16 @@ class AuditAuthenticationRecorderTest {
             assertThat(item.outcome()).isEqualTo(AuditEvent.Outcome.SUCCESS);
             assertThat(item.errorType()).isNull();
         });
-        assertThat(event.getAllValues().get(1).durationMs()).isZero();
+        assertThat(event.getAllValues().get(1).durationMs()).isNull();
     }
 
     @Test
-    void publishesFailureWithAttemptedUsernameAndExceptionType() {
+    void doesNotSetActorForAuthenticationFailure() {
         ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
         var recorder = new AuditAuthenticationRecorder(new DefaultAuditEventPublisher(events), eventFactory());
         var failure = new IllegalArgumentException("invalid credentials");
 
-        recorder.recordFailure("auth.login.failure", "unknown-user", failure, new MockHttpServletRequest());
+        recorder.recordFailure("auth.login.failure", failure, new MockHttpServletRequest());
 
         var event = forClass(AuditEvent.class);
         verify(events).publishEvent(event.capture());
@@ -86,11 +86,11 @@ class AuditAuthenticationRecorderTest {
                         AuditEvent::errorType)
                 .containsExactly(
                         null,
-                        "unknown-user",
+                        null,
                         "auth.login.failure",
                         AuditEvent.Outcome.FAILURE,
                         IllegalArgumentException.class.getName());
-        assertThat(event.getValue().durationMs()).isZero();
+        assertThat(event.getValue().durationMs()).isNull();
     }
 
     private AuditEventFactory eventFactory() {
@@ -98,6 +98,7 @@ class AuditAuthenticationRecorderTest {
         return new AuditEventFactory(
                 () -> null,
                 AuditCorrelationContext::empty,
-                beanFactory.getBeanProvider(AuditRequestContextProvider.class));
+                beanFactory.getBeanProvider(AuditRequestContextProvider.class),
+                false);
     }
 }

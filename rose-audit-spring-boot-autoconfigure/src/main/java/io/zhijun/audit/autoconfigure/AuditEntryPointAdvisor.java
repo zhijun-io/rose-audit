@@ -4,7 +4,10 @@ import io.zhijun.audit.AuditActorProvider;
 import io.zhijun.audit.AuditEvent;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.time.Instant;
 import java.util.Set;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.aopalliance.intercept.MethodInterceptor;
 import org.aopalliance.intercept.MethodInvocation;
@@ -13,16 +16,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.aop.support.StaticMethodMatcherPointcutAdvisor;
 import org.springframework.core.annotation.MergedAnnotations;
-import org.springframework.util.ClassUtils;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
-import org.springframework.web.method.HandlerMethod;
-import org.springframework.web.servlet.HandlerMapping;
 
 /**
- * Audits active MVC request mappings and public methods annotated with supported scheduler or message-listener
- * annotations. Framework annotations are matched by name, so Kafka, RabbitMQ, and JMS integrations remain optional
- * dependencies. Error controllers are skipped so a container error dispatch is not recorded as a successful call.
+ * Audits public methods annotated with supported scheduler or message-listener annotations. Framework annotations are
+ * matched by name, so Kafka, RabbitMQ, and JMS integrations remain optional dependencies.
  * Apply listener annotations only to entry methods; the services they call should not be audited automatically.
  */
 final class AuditEntryPointAdvisor extends StaticMethodMatcherPointcutAdvisor {
@@ -36,11 +33,19 @@ final class AuditEntryPointAdvisor extends StaticMethodMatcherPointcutAdvisor {
             "org.springframework.amqp.rabbit.annotation.RabbitListeners",
             "org.springframework.jms.annotation.JmsListener",
             "org.springframework.jms.annotation.JmsListeners");
-    private static final Set<String> CONTROLLER_ANNOTATIONS = Set.of(
-            "org.springframework.stereotype.Controller", "org.springframework.web.bind.annotation.RestController");
-    private static final Set<String> REQUEST_MAPPING_ANNOTATIONS =
-            Set.of("org.springframework.web.bind.annotation.RequestMapping");
-    private static final String ERROR_CONTROLLER = "org.springframework.boot.webmvc.error.ErrorController";
+    private static final Set<String> KAFKA_HANDLER_ANNOTATIONS =
+            Set.of("org.springframework.kafka.annotation.KafkaHandler");
+    private static final Set<String> SCHEDULED_ANNOTATIONS = Set.of(
+            "org.springframework.scheduling.annotation.Scheduled",
+            "org.springframework.scheduling.annotation.Schedules");
+    private static final Set<String> MESSAGE_ANNOTATIONS = Set.of(
+            "org.springframework.kafka.annotation.KafkaListener", "org.springframework.kafka.annotation.KafkaListeners",
+            "org.springframework.amqp.rabbit.annotation.RabbitListener",
+                    "org.springframework.amqp.rabbit.annotation.RabbitListeners",
+            "org.springframework.jms.annotation.JmsListener", "org.springframework.jms.annotation.JmsListeners");
+    private static final Set<String> CLASS_LEVEL_KAFKA_LISTENER_ANNOTATIONS = Set.of(
+            "org.springframework.kafka.annotation.KafkaListener",
+            "org.springframework.kafka.annotation.KafkaListeners");
 
     private final DefaultAuditEventPublisher publisher;
     private final AuditActorProvider actorProvider;
@@ -56,59 +61,73 @@ final class AuditEntryPointAdvisor extends StaticMethodMatcherPointcutAdvisor {
 
     @Override
     public boolean matches(Method method, Class<?> targetClass) {
-        if (!Modifier.isPublic(method.getModifiers()) || isErrorController(targetClass)) {
+        if (!Modifier.isPublic(method.getModifiers())) {
             return false;
         }
-        return hasAnnotation(method, ENTRY_POINT_ANNOTATIONS)
-                || (hasAnnotation(targetClass, CONTROLLER_ANNOTATIONS)
-                        && hasAnnotation(method, REQUEST_MAPPING_ANNOTATIONS));
+        return isEntryPoint(method, targetClass);
     }
 
     private Object record(MethodInvocation invocation) throws Throwable {
         Class<?> targetClass = AopUtils.getTargetClass(invocation.getThis());
         Method method = AopUtils.getMostSpecificMethod(invocation.getMethod(), targetClass);
-        if (!hasAnnotation(method, ENTRY_POINT_ANNOTATIONS) && !isActiveControllerHandler(targetClass, method)) {
+        if (!isEntryPoint(method, targetClass)) {
             return invocation.proceed();
         }
 
         String action = targetClass.getSimpleName() + "." + method.getName();
         long startedNanos = System.nanoTime();
+        Instant startedAt = Instant.now();
         Object result;
         try {
             result = invocation.proceed();
         } catch (Throwable businessFailure) {
-            publish(action, AuditEvent.Outcome.FAILURE, startedNanos, businessFailure);
+            publish(
+                    entryType(method, targetClass),
+                    action,
+                    AuditEvent.Outcome.FAILURE,
+                    startedAt,
+                    TimeUnit.NANOSECONDS.toMillis(Math.max(0, System.nanoTime() - startedNanos)),
+                    businessFailure);
             throw businessFailure;
         }
-        publish(action, AuditEvent.Outcome.SUCCESS, startedNanos, null);
+        if (isAsyncResult(result, method)) {
+            publish(entryType(method, targetClass), action, AuditEvent.Outcome.UNKNOWN, startedAt, null, null);
+        } else {
+            publish(
+                    entryType(method, targetClass),
+                    action,
+                    AuditEvent.Outcome.SUCCESS,
+                    startedAt,
+                    TimeUnit.NANOSECONDS.toMillis(Math.max(0, System.nanoTime() - startedNanos)),
+                    null);
+        }
         return result;
     }
 
-    private void publish(String action, AuditEvent.Outcome outcome, long startedNanos, Throwable failure) {
-        long durationMs = TimeUnit.NANOSECONDS.toMillis(Math.max(0, System.nanoTime() - startedNanos));
+    private void publish(
+            AuditEvent.Type type,
+            String action,
+            AuditEvent.Outcome outcome,
+            Instant startedAt,
+            Long durationMs,
+            Throwable failure) {
         try {
             publisher.publish(eventFactory.create(
+                    type,
                     actorProvider.currentActorId(),
                     actorProvider.currentActorName(),
                     action,
                     outcome,
+                    startedAt,
                     durationMs,
                     failure));
         } catch (RuntimeException publishFailure) {
-            LOGGER.warn("Audit event publishing failed (action={}, outcome={})", action, outcome, publishFailure);
+            LOGGER.warn(
+                    "Audit event publishing failed (type={}, outcome={}, cause={})",
+                    type,
+                    outcome,
+                    publishFailure.getClass().getName());
         }
-    }
-
-    private boolean isErrorController(Class<?> targetClass) {
-        if (ERROR_CONTROLLER.equals(targetClass.getName())) {
-            return true;
-        }
-        for (Class<?> type : ClassUtils.getAllInterfacesForClassAsSet(targetClass)) {
-            if (ERROR_CONTROLLER.equals(type.getName())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private boolean hasAnnotation(java.lang.reflect.AnnotatedElement element, Set<String> annotationNames) {
@@ -117,23 +136,29 @@ final class AuditEntryPointAdvisor extends StaticMethodMatcherPointcutAdvisor {
                         annotationNames.contains(annotation.getType().getName()));
     }
 
-    private boolean isActiveControllerHandler(Class<?> targetClass, Method method) {
-        if (!hasAnnotation(targetClass, CONTROLLER_ANNOTATIONS)) {
-            return false;
-        }
-        ClassLoader classLoader = targetClass.getClassLoader();
-        if (!ClassUtils.isPresent("org.springframework.web.servlet.HandlerMapping", classLoader)
-                || !ClassUtils.isPresent("jakarta.servlet.http.HttpServletRequest", classLoader)) {
-            return false;
-        }
-        if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes)) {
-            return false;
-        }
-        Object handler = attributes.getRequest().getAttribute(HandlerMapping.BEST_MATCHING_HANDLER_ATTRIBUTE);
-        if (!(handler instanceof HandlerMethod handlerMethod)) {
-            return false;
-        }
-        Method mappedMethod = AopUtils.getMostSpecificMethod(handlerMethod.getMethod(), handlerMethod.getBeanType());
-        return mappedMethod.equals(method);
+    private boolean isEntryPoint(Method method, Class<?> targetClass) {
+        return hasAnnotation(method, ENTRY_POINT_ANNOTATIONS)
+                || (hasAnnotation(method, KAFKA_HANDLER_ANNOTATIONS)
+                        && hasAnnotation(targetClass, CLASS_LEVEL_KAFKA_LISTENER_ANNOTATIONS));
+    }
+
+    private AuditEvent.Type entryType(Method method, Class<?> targetClass) {
+        if (hasAnnotation(method, SCHEDULED_ANNOTATIONS)) return AuditEvent.Type.SCHEDULED_TASK;
+        if (hasAnnotation(method, MESSAGE_ANNOTATIONS)
+                || hasAnnotation(method, KAFKA_HANDLER_ANNOTATIONS)
+                || hasAnnotation(targetClass, CLASS_LEVEL_KAFKA_LISTENER_ANNOTATIONS)) return AuditEvent.Type.MESSAGE;
+        return AuditEvent.Type.OPERATION;
+    }
+
+    private boolean isAsyncResult(Object result, Method method) {
+        if (result instanceof Future<?> || result instanceof CompletionStage<?>) return true;
+        return hasAsyncType(method.getReturnType());
+    }
+
+    private boolean hasAsyncType(Class<?> type) {
+        if (type.getName().equals("org.reactivestreams.Publisher")) return true;
+        for (Class<?> implemented : type.getInterfaces()) if (hasAsyncType(implemented)) return true;
+        Class<?> parent = type.getSuperclass();
+        return parent != null && parent != Object.class && hasAsyncType(parent);
     }
 }

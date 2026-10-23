@@ -1,14 +1,15 @@
 package io.zhijun.audit.jdbc;
 
 import io.zhijun.audit.AuditEvent.Outcome;
+import io.zhijun.audit.AuditEvent.Type;
 import java.time.Instant;
 
 /**
- * Immutable row returned by audit-event searches. In addition to the captured event fields it includes the persistence
- * identifier assigned by the JDBC implementation; it is not the input type used to publish a new event.
+ * Immutable row returned by audit-event searches, including the event identifier and type assigned by the audit core.
  */
 public record AuditEventRecord(
         String eventId,
+        Type type,
         Instant occurredAt,
         String tenantId,
         String requestId,
@@ -17,7 +18,7 @@ public record AuditEventRecord(
         String actorName,
         String action,
         Outcome outcome,
-        long durationMs,
+        Long durationMs,
         String errorType,
         String errorMessage,
         String httpMethod,

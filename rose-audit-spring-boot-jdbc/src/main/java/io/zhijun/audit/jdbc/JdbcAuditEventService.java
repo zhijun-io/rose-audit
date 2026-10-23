@@ -7,7 +7,6 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -25,29 +24,29 @@ import org.springframework.transaction.annotation.Transactional;
 public class JdbcAuditEventService implements AuditEventService {
     private static final String INSERT_SQL = """
             INSERT INTO audit_event (
-                event_id, occurred_at, tenant_id, request_id, trace_id, actor_id, actor_name, action,
+                event_id, event_type, occurred_at, tenant_id, request_id, trace_id, actor_id, actor_name, action,
                 outcome, duration_ms, error_type, error_message, http_method, url, query_string, http_status,
                 client_ip, user_agent
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
 
     private static final String SELECT_COLUMNS = """
-            SELECT event_id, occurred_at, tenant_id, request_id, trace_id, actor_id, actor_name, action,
+            SELECT event_id, event_type, occurred_at, tenant_id, request_id, trace_id, actor_id, actor_name, action,
                    outcome, duration_ms, error_type, error_message, http_method, url, query_string, http_status,
                    client_ip, user_agent
             FROM audit_event
             """;
     private static final int MAX_PAGE_SIZE = 200;
-    private static final Map<String, String> SORT_COLUMNS = Map.ofEntries(
-            Map.entry("occurredAt", "occurred_at"),
-            Map.entry("eventId", "event_id"),
-            Map.entry("tenantId", "tenant_id"),
-            Map.entry("requestId", "request_id"),
-            Map.entry("traceId", "trace_id"),
-            Map.entry("actorId", "actor_id"),
-            Map.entry("actorName", "actor_name"),
-            Map.entry("action", "action"),
-            Map.entry("outcome", "outcome"));
+    private static final Map<String, String> SORT_COLUMNS = Map.of(
+            "occurredAt", "occurred_at",
+            "eventId", "event_id",
+            "tenantId", "tenant_id",
+            "requestId", "request_id",
+            "traceId", "trace_id",
+            "actorId", "actor_id",
+            "actorName", "actor_name",
+            "action", "action",
+            "outcome", "outcome");
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -60,7 +59,8 @@ public class JdbcAuditEventService implements AuditEventService {
     public void create(AuditEvent event) {
         jdbcTemplate.update(
                 INSERT_SQL,
-                UUID.randomUUID().toString(),
+                event.eventId(),
+                event.type().name(),
                 Timestamp.from(event.occurredAt()),
                 event.tenantId(),
                 event.requestId(),
@@ -88,8 +88,9 @@ public class JdbcAuditEventService implements AuditEventService {
         if (pageable.getPageSize() < 1 || pageable.getPageSize() > MAX_PAGE_SIZE) {
             throw new IllegalArgumentException("page size must be between 1 and " + MAX_PAGE_SIZE);
         }
+        String orderBy = orderBy(pageable.getSort());
         SqlFilter sqlFilter = filter(filter == null ? AuditEventQueryRequest.all() : filter);
-        Long total = jdbcTemplate.queryForObject(
+        long total = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM audit_event" + sqlFilter.clause(),
                 Long.class,
                 sqlFilter.parameters().toArray());
@@ -97,11 +98,10 @@ public class JdbcAuditEventService implements AuditEventService {
         parameters.add(pageable.getPageSize());
         parameters.add(pageable.getOffset());
         List<AuditEventRecord> records = jdbcTemplate.query(
-                SELECT_COLUMNS + sqlFilter.clause() + orderBy(pageable.getSort()) + " LIMIT ? OFFSET ?",
+                SELECT_COLUMNS + sqlFilter.clause() + orderBy + " LIMIT ? OFFSET ?",
                 this::mapRow,
                 parameters.toArray());
-        long totalElements = total == null ? 0 : total;
-        return new PageImpl<>(records, pageable, totalElements);
+        return new PageImpl<>(records, pageable, total);
     }
 
     private String orderBy(Sort sort) {
@@ -150,6 +150,7 @@ public class JdbcAuditEventService implements AuditEventService {
     private AuditEventRecord mapRow(ResultSet row, int rowNumber) throws SQLException {
         return new AuditEventRecord(
                 row.getString("event_id"),
+                AuditEvent.Type.valueOf(row.getString("event_type")),
                 row.getTimestamp("occurred_at").toInstant(),
                 row.getString("tenant_id"),
                 row.getString("request_id"),
@@ -158,7 +159,7 @@ public class JdbcAuditEventService implements AuditEventService {
                 row.getString("actor_name"),
                 row.getString("action"),
                 AuditEvent.Outcome.valueOf(row.getString("outcome")),
-                row.getLong("duration_ms"),
+                row.getObject("duration_ms", Long.class),
                 row.getString("error_type"),
                 row.getString("error_message"),
                 row.getString("http_method"),

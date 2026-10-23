@@ -2,6 +2,7 @@ package io.zhijun.audit.autoconfigure;
 
 import io.zhijun.audit.AuditEvent;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,9 +29,9 @@ public final class AuditAuthenticationRecorder {
         publish(action, actorId, actorName, AuditEvent.Outcome.SUCCESS, null, durationMs(request));
     }
 
-    /** Record failure with the submitted username as the display name. The account id stays empty. */
-    public void recordFailure(String action, String attemptedUsername, Throwable failure, HttpServletRequest request) {
-        publish(action, null, attemptedUsername, AuditEvent.Outcome.FAILURE, failure, durationMs(request));
+    /** Record failure without treating an unverified submitted username as the authenticated actor. */
+    public void recordFailure(String action, Throwable failure, HttpServletRequest request) {
+        publish(action, null, null, AuditEvent.Outcome.FAILURE, failure, durationMs(request));
     }
 
     private void publish(
@@ -39,24 +40,24 @@ public final class AuditAuthenticationRecorder {
             String actorName,
             AuditEvent.Outcome outcome,
             Throwable failure,
-            long durationMs) {
+            Long durationMs) {
         try {
-            publisher.publish(eventFactory.create(actorId, actorName, action, outcome, durationMs, failure));
+            publisher.publish(eventFactory.create(
+                    AuditEvent.Type.AUTHENTICATION, actorId, actorName, action, outcome, durationMs, failure));
         } catch (RuntimeException publishFailure) {
             LOGGER.warn(
-                    "Authentication audit event publishing failed (action={}, outcome={})",
-                    action,
+                    "Authentication audit event publishing failed (outcome={}, cause={})",
                     outcome,
-                    publishFailure);
+                    publishFailure.getClass().getName());
         }
     }
 
-    private long durationMs(HttpServletRequest request) {
+    private Long durationMs(HttpServletRequest request) {
         Object startedAt = request.getAttribute(STARTED_AT_ATTRIBUTE);
         request.removeAttribute(STARTED_AT_ATTRIBUTE);
         if (startedAt instanceof Long startedAtNanos) {
-            return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(Math.max(0, System.nanoTime() - startedAtNanos));
+            return TimeUnit.NANOSECONDS.toMillis(Math.max(0, System.nanoTime() - startedAtNanos));
         }
-        return 0;
+        return null;
     }
 }

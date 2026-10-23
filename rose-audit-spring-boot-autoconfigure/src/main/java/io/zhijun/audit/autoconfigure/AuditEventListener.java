@@ -2,20 +2,18 @@ package io.zhijun.audit.autoconfigure;
 
 import io.zhijun.audit.AuditEvent;
 import io.zhijun.audit.AuditEventConsumer;
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.task.TaskExecutor;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Coordinates transaction timing and asynchronous delivery for the configured {@link AuditEventConsumer}. A successful
- * event is enqueued only after commit; it is discarded when the business transaction rolls back. A failure event is
- * enqueued after transaction completion, whether the transaction committed or rolled back. Events published without an
- * active transaction are enqueued immediately. If a transaction is active without synchronization support, the event
- * is logged and discarded rather than consumed before transaction completion. Queue rejection and consumer failures
- * are logged and are not retried; the in-memory queue is not durable.
+ * event is enqueued immediately because it records an observed execution fact, independent of the enclosing business
+ * transaction. Queue rejection and consumer failures are logged and are not retried; the in-memory queue is not durable.
  */
 final class AuditEventListener {
     private static final Logger LOGGER = LoggerFactory.getLogger(AuditEventListener.class);
@@ -23,6 +21,7 @@ final class AuditEventListener {
     private final AuditEventConsumer consumer;
     private final TaskExecutor taskExecutor;
     private final Metrics metrics;
+    private final FailureLogLimiter failureLogLimiter = new FailureLogLimiter(System::nanoTime);
 
     AuditEventListener(AuditEventConsumer consumer, TaskExecutor taskExecutor) {
         this(consumer, taskExecutor, Metrics.NOOP);
@@ -36,46 +35,7 @@ final class AuditEventListener {
 
     @EventListener
     void consume(AuditEvent event) {
-        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
-            enqueue(event);
-            return;
-        }
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            metrics.failed("defer", event.outcome());
-            LOGGER.error(
-                    "Audit event could not be deferred because transaction synchronization is inactive "
-                            + "(action={}, outcome={})",
-                    event.action(),
-                    event.outcome());
-            return;
-        }
-
-        TransactionSynchronization synchronization = new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                if (event.outcome() == AuditEvent.Outcome.SUCCESS) {
-                    enqueue(event);
-                }
-            }
-
-            @Override
-            public void afterCompletion(int status) {
-                if (event.outcome() == AuditEvent.Outcome.FAILURE) {
-                    enqueue(event);
-                }
-            }
-        };
-
-        try {
-            TransactionSynchronizationManager.registerSynchronization(synchronization);
-        } catch (RuntimeException registrationFailure) {
-            metrics.failed("defer", event.outcome());
-            LOGGER.error(
-                    "Audit event could not be deferred (action={}, outcome={})",
-                    event.action(),
-                    event.outcome(),
-                    registrationFailure);
-        }
+        enqueue(event);
     }
 
     private void enqueue(AuditEvent event) {
@@ -84,11 +44,7 @@ final class AuditEventListener {
             metrics.queued(event.outcome());
         } catch (RuntimeException dispatchFailure) {
             metrics.failed("enqueue", event.outcome());
-            LOGGER.error(
-                    "Audit event could not be queued (action={}, outcome={})",
-                    event.action(),
-                    event.outcome(),
-                    dispatchFailure);
+            logFailure("queued", event, dispatchFailure);
         }
     }
 
@@ -99,38 +55,59 @@ final class AuditEventListener {
             metrics.consumed(event.outcome());
         } catch (RuntimeException consumeFailure) {
             metrics.failed("consume", event.outcome());
-            LOGGER.error(
-                    "Audit event could not be consumed (action={}, outcome={})",
-                    event.action(),
-                    event.outcome(),
-                    consumeFailure);
+            logFailure("consumed", event, consumeFailure);
         } finally {
             metrics.consumerDuration(event.outcome(), System.nanoTime() - startedAt);
         }
     }
 
+    private void logFailure(String stage, AuditEvent event, RuntimeException failure) {
+        if (!failureLogLimiter.shouldLog()) return;
+        LOGGER.error(
+                "Audit event could not be {} (type={}, outcome={}, cause={}, suppressed={})",
+                stage,
+                event.type(),
+                event.outcome(),
+                failure.getClass().getName(),
+                failureLogLimiter.takeSuppressed());
+    }
+
+    /** Allows one failure log per interval while metrics continue to count every failure. */
+    static final class FailureLogLimiter {
+        private static final long INTERVAL_NANOS = Duration.ofSeconds(10).toNanos();
+        private final LongSupplier nanoTime;
+        private final AtomicLong nextLogAt = new AtomicLong();
+        private final AtomicLong suppressed = new AtomicLong();
+
+        FailureLogLimiter(LongSupplier nanoTime) {
+            this.nanoTime = nanoTime;
+        }
+
+        boolean shouldLog() {
+            long now = nanoTime.getAsLong();
+            long next = nextLogAt.get();
+            if (now < next || !nextLogAt.compareAndSet(next, now + INTERVAL_NANOS)) {
+                suppressed.incrementAndGet();
+                return false;
+            }
+            return true;
+        }
+
+        long takeSuppressed() {
+            return suppressed.getAndSet(0);
+        }
+    }
+
     /** Records queued, consumed, failed-stage, and duration measurements without coupling the listener to Micrometer. */
     interface Metrics {
-        Metrics NOOP = new Metrics() {
-            @Override
-            public void queued(AuditEvent.Outcome outcome) {}
+        Metrics NOOP = new Metrics() {};
 
-            @Override
-            public void consumed(AuditEvent.Outcome outcome) {}
+        default void queued(AuditEvent.Outcome outcome) {}
 
-            @Override
-            public void failed(String stage, AuditEvent.Outcome outcome) {}
+        default void consumed(AuditEvent.Outcome outcome) {}
 
-            @Override
-            public void consumerDuration(AuditEvent.Outcome outcome, long durationNanos) {}
-        };
+        default void failed(String stage, AuditEvent.Outcome outcome) {}
 
-        void queued(AuditEvent.Outcome outcome);
-
-        void consumed(AuditEvent.Outcome outcome);
-
-        void failed(String stage, AuditEvent.Outcome outcome);
-
-        void consumerDuration(AuditEvent.Outcome outcome, long durationNanos);
+        default void consumerDuration(AuditEvent.Outcome outcome, long durationNanos) {}
     }
 }

@@ -9,6 +9,7 @@ import io.zhijun.audit.AuditTenantProvider;
 import java.util.concurrent.ThreadPoolExecutor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -20,9 +21,9 @@ import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 /**
- * Configures asynchronous audit consumption when an {@link AuditEventConsumer} bean is available. Successful events
- * are queued after business commit; failed events are queued after transaction completion. Events published outside a
- * transaction are queued immediately. The default executor has two core threads, up to four threads, a queue capacity
+ * Configures asynchronous audit consumption when an {@link AuditEventConsumer} bean is available. Events are queued
+ * immediately as observed execution facts, regardless of business transaction outcome. The default executor has two
+ * core threads, up to four threads, a queue capacity
  * of 200, and waits up to 30 seconds for queued tasks during shutdown. Its in-memory queue is not durable: rejected or
  * not-yet-consumed events can be lost. Applications can replace the consumer bean to use another destination and can
  * replace the executor with a bean named {@code auditEventTaskExecutor}.
@@ -31,8 +32,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  * transaction-completion thread and can exhaust the JDBC pool. The JDBC consumer starts its own transaction when it
  * writes an event.
  *
- * <p>The configuration is applied after transaction auto-configuration, so this advisor stays inside the transaction
- * advisor when their orders tie. {@code rose.audit.enabled=false} stops recording.
+ * <p>{@code rose.audit.enabled=false} stops recording.
  */
 @AutoConfiguration(afterName = "org.springframework.boot.transaction.autoconfigure.TransactionAutoConfiguration")
 @ConditionalOnClass(name = "org.aspectj.lang.annotation.Aspect")
@@ -67,8 +67,10 @@ public class AuditAutoConfiguration {
     AuditEventFactory auditEventFactory(
             AuditTenantProvider tenantProvider,
             AuditCorrelationContextProvider correlationContextProvider,
-            ObjectProvider<AuditRequestContextProvider> requestContextProvider) {
-        return new AuditEventFactory(tenantProvider, correlationContextProvider, requestContextProvider);
+            ObjectProvider<AuditRequestContextProvider> requestContextProvider,
+            @Value("${rose.audit.error.capture-message:false}") boolean captureErrorMessage) {
+        return new AuditEventFactory(
+                tenantProvider, correlationContextProvider, requestContextProvider, captureErrorMessage);
     }
 
     @Bean

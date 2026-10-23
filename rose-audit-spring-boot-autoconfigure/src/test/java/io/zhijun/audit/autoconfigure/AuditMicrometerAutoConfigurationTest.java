@@ -28,6 +28,8 @@ class AuditMicrometerAutoConfigurationTest {
     void countsConsumeFailuresWithoutFailingThePublisher() {
         contextRunner.run(context -> {
             AuditEvent event = new AuditEvent(
+                    "test-event",
+                    AuditEvent.Type.OPERATION,
                     Instant.parse("2026-10-22T00:00:00Z"),
                     null,
                     null,
@@ -36,7 +38,7 @@ class AuditMicrometerAutoConfigurationTest {
                     null,
                     "order.create",
                     AuditEvent.Outcome.SUCCESS,
-                    1,
+                    1L,
                     null,
                     null,
                     null,

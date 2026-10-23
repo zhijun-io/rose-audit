@@ -21,16 +21,20 @@ final class DefaultAuditEventPublisher {
         this.metrics = metrics;
     }
 
+    void recordBuildFailure() {
+        metrics.failed("build", AuditEvent.Outcome.UNKNOWN);
+    }
+
     public void publish(AuditEvent event) {
         try {
             eventPublisher.publishEvent(event);
         } catch (RuntimeException publishFailure) {
             metrics.failed("publish", event.outcome());
             LOGGER.error(
-                    "Audit event could not be published (action={}, outcome={})",
-                    event.action(),
+                    "Audit event could not be published (type={}, outcome={}, cause={})",
+                    event.type(),
                     event.outcome(),
-                    publishFailure);
+                    publishFailure.getClass().getName());
         }
     }
 }

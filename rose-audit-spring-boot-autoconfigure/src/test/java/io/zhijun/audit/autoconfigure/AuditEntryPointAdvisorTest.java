@@ -32,7 +32,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerMapping;
 
-/** Verifies merged Controller and scheduled-entry auditing through one advisor. */
+/** Verifies scheduler and messaging entry auditing through the advisor. */
 class AuditEntryPointAdvisorTest {
     private final List<AuditEvent> events = new ArrayList<>();
 
@@ -42,7 +42,7 @@ class AuditEntryPointAdvisorTest {
     }
 
     @Test
-    void publishesOneEventWhenMethodIsBothControllerHandlerAndScheduledEntry() throws Exception {
+    void auditsScheduledControllerMethodAsAScheduledEntry() throws Exception {
         var target = new TestController();
         Method handlerMethod = TestController.class.getMethod("run");
         var request = new MockHttpServletRequest("GET", "/run");
@@ -55,8 +55,8 @@ class AuditEntryPointAdvisorTest {
 
         assertThat(events)
                 .singleElement()
-                .extracting(AuditEvent::action, AuditEvent::outcome)
-                .containsExactly("TestController.run", AuditEvent.Outcome.SUCCESS);
+                .extracting(AuditEvent::action, AuditEvent::outcome, AuditEvent::type)
+                .containsExactly("TestController.run", AuditEvent.Outcome.SUCCESS, AuditEvent.Type.SCHEDULED_TASK);
     }
 
     @Test
@@ -74,7 +74,7 @@ class AuditEntryPointAdvisorTest {
     }
 
     @Test
-    void recognizesComposedRestControllerAnnotation() throws Exception {
+    void leavesControllerAuditingToTheServletAdapter() throws Exception {
         var target = new ComposedController();
         Method handlerMethod = ComposedController.class.getMethod("handle");
         setHandler(target, handlerMethod);
@@ -82,15 +82,11 @@ class AuditEntryPointAdvisorTest {
         proxyFactory.addAdvisor(advisor());
 
         ((ComposedController) proxyFactory.getProxy()).handle();
-
-        assertThat(events)
-                .singleElement()
-                .extracting(AuditEvent::action, AuditEvent::outcome)
-                .containsExactly("ComposedController.handle", AuditEvent.Outcome.SUCCESS);
+        assertThat(events).isEmpty();
     }
 
     @Test
-    void recordsFailureAndRethrowsTheOriginalException() throws Exception {
+    void doesNotAuditControllerFailuresThroughTheBackgroundAdvisor() throws Exception {
         var target = new FailingController();
         Method handlerMethod = FailingController.class.getMethod("fail");
         setHandler(target, handlerMethod);
@@ -101,15 +97,11 @@ class AuditEntryPointAdvisorTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("operation failed");
 
-        assertThat(events)
-                .singleElement()
-                .extracting(AuditEvent::action, AuditEvent::outcome, AuditEvent::errorType)
-                .containsExactly(
-                        "FailingController.fail", AuditEvent.Outcome.FAILURE, IllegalStateException.class.getName());
+        assertThat(events).isEmpty();
     }
 
     @Test
-    void recordsAsyncControllerAsSuccessfulWhenMethodReturnsBeforeFutureCompletes() throws Exception {
+    void marksUnsupportedAsyncEntryCompletionUnknown() throws Exception {
         var target = new AsyncController();
         Method handlerMethod = AsyncController.class.getMethod("handle");
         setHandler(target, handlerMethod);
@@ -119,10 +111,11 @@ class AuditEntryPointAdvisorTest {
         CompletableFuture<String> result = ((AsyncController) proxyFactory.getProxy()).handle();
 
         assertThat(result).isNotDone();
-        assertThat(events)
-                .singleElement()
-                .extracting(AuditEvent::action, AuditEvent::outcome)
-                .containsExactly("AsyncController.handle", AuditEvent.Outcome.SUCCESS);
+        assertThat(events).singleElement().satisfies(event -> {
+            assertThat(event.action()).isEqualTo("AsyncController.handle");
+            assertThat(event.outcome()).isEqualTo(AuditEvent.Outcome.UNKNOWN);
+            assertThat(event.durationMs()).isNull();
+        });
     }
 
     @Test
@@ -153,7 +146,8 @@ class AuditEntryPointAdvisorTest {
         @SuppressWarnings("unchecked")
         ObjectProvider<AuditRequestContextProvider> requestContextProvider = mock(ObjectProvider.class);
         when(requestContextProvider.getIfAvailable()).thenReturn(new ServletAuditRequestContextProvider());
-        var eventFactory = new AuditEventFactory(() -> null, AuditCorrelationContext::empty, requestContextProvider);
+        var eventFactory =
+                new AuditEventFactory(() -> null, AuditCorrelationContext::empty, requestContextProvider, false);
         return new AuditEntryPointAdvisor(
                 new DefaultAuditEventPublisher(event -> events.add((AuditEvent) event)),
                 () -> "test-user",
@@ -200,6 +194,7 @@ class AuditEntryPointAdvisorTest {
     @RestController
     static class AsyncController {
         @GetMapping("/async")
+        @Scheduled(fixedDelay = Long.MAX_VALUE)
         public CompletableFuture<String> handle() {
             return new CompletableFuture<>();
         }

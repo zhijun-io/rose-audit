@@ -93,6 +93,8 @@ class JdbcAuditIntegrationTest {
         assertThat(secondPage.getContent()).hasSize(1);
         assertThat(secondPage.getTotalElements()).isEqualTo(2);
         assertThat(firstPage.getContent().getFirst().action()).isEqualTo("AuditedOperations.succeed");
+        assertThat(firstPage.getContent().getFirst().eventId()).isNotBlank();
+        assertThat(firstPage.getContent().getFirst().type()).isEqualTo(AuditEvent.Type.SCHEDULED_TASK);
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM operation_record", Integer.class))
                 .isEqualTo(2);
         assertThat(testAuditEventConsumer.events).hasSize(2);
@@ -118,16 +120,18 @@ class JdbcAuditIntegrationTest {
     }
 
     @Test
-    void doesNotPersistSuccessEventWhenEnclosingBusinessTransactionRollsBack() {
+    void persistsObservedSuccessWhenEnclosingBusinessTransactionRollsBack() {
         assertThatThrownBy(() -> rollbackCaller.succeedThenRollback("rolled-back-success"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("caller failed");
 
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM operation_record", Integer.class))
                 .isZero();
-        await().during(Duration.ofSeconds(1))
-                .atMost(Duration.ofSeconds(3))
-                .until(() -> jdbcTemplate.queryForObject("SELECT COUNT(*) FROM audit_event", Integer.class) == 0);
+        await().atMost(Duration.ofSeconds(5))
+                .untilAsserted(() -> assertThat(jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM audit_event WHERE action = 'AuditedOperations.succeed'",
+                                Integer.class))
+                        .isEqualTo(1));
     }
 
     @Test
@@ -167,6 +171,8 @@ class JdbcAuditIntegrationTest {
 
     private AuditEvent storedEvent(String tenantId, String action, AuditEvent.Outcome outcome, Instant occurredAt) {
         return new AuditEvent(
+                action,
+                AuditEvent.Type.OPERATION,
                 occurredAt,
                 tenantId,
                 null,
@@ -175,7 +181,7 @@ class JdbcAuditIntegrationTest {
                 null,
                 action,
                 outcome,
-                1,
+                1L,
                 null,
                 null,
                 null,

@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS audit_event (
     event_id VARCHAR(36) PRIMARY KEY,
+    event_type VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN',
     occurred_at TIMESTAMPTZ NOT NULL,
     tenant_id VARCHAR(512),
     request_id VARCHAR(512),
@@ -8,7 +9,7 @@ CREATE TABLE IF NOT EXISTS audit_event (
     actor_name VARCHAR(512),
     action VARCHAR(512) NOT NULL,
     outcome VARCHAR(16) NOT NULL,
-    duration_ms BIGINT NOT NULL,
+    duration_ms BIGINT,
     error_type VARCHAR(512),
     error_message VARCHAR(2048),
     http_method VARCHAR(16),
