@@ -3,6 +3,8 @@ package io.zhijun.audit.jdbc;
 import io.zhijun.audit.AuditEventConsumer;
 import io.zhijun.audit.autoconfigure.AuditAutoConfiguration;
 import javax.sql.DataSource;
+import org.springframework.aop.framework.AopProxyUtils;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -11,6 +13,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
 import org.springframework.boot.jdbc.autoconfigure.JdbcTemplateAutoConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -38,5 +41,36 @@ public class AuditJdbcAutoConfiguration {
     @ConditionalOnProperty(prefix = "rose.audit", name = "enabled", matchIfMissing = true)
     AuditEventConsumer jdbcAuditEventConsumer(AuditEventService auditEventService) {
         return auditEventService::create;
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "rose.audit.jdbc", name = "validate-schema", matchIfMissing = true)
+    AuditSchemaValidator auditSchemaValidator(AuditEventService auditEventService, JdbcTemplate jdbcTemplate) {
+        return new AuditSchemaValidator(auditEventService, jdbcTemplate);
+    }
+
+    /** Fails startup when the built-in JDBC store is active and {@code audit_event} cannot be queried. */
+    private static final class AuditSchemaValidator implements SmartInitializingSingleton {
+        private final AuditEventService service;
+        private final JdbcTemplate jdbcTemplate;
+
+        private AuditSchemaValidator(AuditEventService service, JdbcTemplate jdbcTemplate) {
+            this.service = service;
+            this.jdbcTemplate = jdbcTemplate;
+        }
+
+        @Override
+        public void afterSingletonsInstantiated() {
+            if (!JdbcAuditEventService.class.isAssignableFrom(AopProxyUtils.ultimateTargetClass(service))) {
+                return;
+            }
+            try {
+                jdbcTemplate.queryForList("SELECT 1 FROM audit_event WHERE 1 = 0");
+            } catch (DataAccessException exception) {
+                throw new IllegalStateException(
+                        "audit_event table was not found. Apply classpath:db/audit-schema-postgresql.sql before starting.",
+                        exception);
+            }
+        }
     }
 }

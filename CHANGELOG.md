@@ -11,6 +11,8 @@ Notable changes to Rose Audit Spring Boot Starter are listed here.
 - Audit Spring MVC request mappings only, and skip `ErrorController` types so an error dispatch is not stored as a
   success.
 - Omit HTTP query strings unless `rose.audit.http.capture-query-string` is enabled.
+- Fail startup when the built-in JDBC store cannot query `audit_event`, unless `rose.audit.jdbc.validate-schema` is
+  disabled. Add an index on `action` and occurrence time.
 - Move the event model and context-provider APIs to `io.zhijun.audit`, and the servlet request-context provider to
   `io.zhijun.audit.web`; Controller AOP events no longer record a possibly premature default HTTP status.
 - Replace the public `AuditEventPublisher` SPI with Spring application events. Applications that implemented the SPI should migrate to `@EventListener`.

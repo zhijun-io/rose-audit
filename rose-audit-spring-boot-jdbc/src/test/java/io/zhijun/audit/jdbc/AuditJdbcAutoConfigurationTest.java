@@ -1,8 +1,10 @@
 package io.zhijun.audit.jdbc;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import io.zhijun.audit.AuditEvent;
 import io.zhijun.audit.AuditEventConsumer;
@@ -11,6 +13,7 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.dao.DataRetrievalFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /** Verifies JDBC persistence and consumer auto-configuration, including custom consumer backoff. */
@@ -32,6 +35,39 @@ class AuditJdbcAutoConfigurationTest {
 
             verify(auditEventService).create(event);
         });
+    }
+
+    @Test
+    void failsStartupWhenTheAuditTableIsMissing() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        when(jdbcTemplate.queryForList(anyString()))
+                .thenThrow(new DataRetrievalFailureException("relation audit_event does not exist"));
+
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(AuditJdbcAutoConfiguration.class))
+                .withBean(DataSource.class, () -> mock(DataSource.class))
+                .withBean(JdbcTemplate.class, () -> jdbcTemplate)
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure()).hasStackTraceContaining("audit_event table was not found");
+                });
+    }
+
+    @Test
+    void skipsSchemaValidationWhenDisabled() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        when(jdbcTemplate.queryForList(anyString()))
+                .thenThrow(new DataRetrievalFailureException("relation audit_event does not exist"));
+
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(AuditJdbcAutoConfiguration.class))
+                .withPropertyValues("rose.audit.jdbc.validate-schema=false")
+                .withBean(DataSource.class, () -> mock(DataSource.class))
+                .withBean(JdbcTemplate.class, () -> jdbcTemplate)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(AuditEventService.class);
+                });
     }
 
     @Test

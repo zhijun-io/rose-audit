@@ -42,10 +42,13 @@ rose:
     enabled: true
     http:
       capture-query-string: false
+    jdbc:
+      validate-schema: true
 ```
 
 `enabled=false` stops recording and leaves JDBC search in place. Query strings are stored only when
-`capture-query-string` is `true`.
+`capture-query-string` is `true`. Apply `classpath:db/audit-schema-postgresql.sql` before startup; the JDBC store fails
+startup when `audit_event` is missing unless `validate-schema` is `false`.
 
 `actorId` is the account id and `actorName` is the display name. Without an `AuditActorProvider`, Spring Security fills
 only `actorName` from the authenticated principal name. Anonymous sessions and non-HTTP work have neither. A failed

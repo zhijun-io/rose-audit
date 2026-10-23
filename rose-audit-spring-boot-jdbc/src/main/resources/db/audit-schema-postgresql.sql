@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS audit_event (
 );
 
 CREATE INDEX IF NOT EXISTS idx_audit_event_occurred_id ON audit_event (occurred_at DESC, event_id DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_event_action_occurred_id ON audit_event (action, occurred_at DESC, event_id DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_event_actor_occurred_id ON audit_event (actor_id, occurred_at DESC, event_id DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_event_tenant_occurred_id ON audit_event (tenant_id, occurred_at DESC, event_id DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_event_request_id ON audit_event (request_id) WHERE request_id IS NOT NULL;
