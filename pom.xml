@@ -46,6 +46,8 @@
 
         <maven-gpg-plugin.version>3.2.7</maven-gpg-plugin.version>
         <central-publishing-maven-plugin.version>0.10.0</central-publishing-maven-plugin.version>
+        <archunit.version>1.5.1</archunit.version>
+        <taikai.version>1.67.0</taikai.version>
     </properties>
 
     <modules>
