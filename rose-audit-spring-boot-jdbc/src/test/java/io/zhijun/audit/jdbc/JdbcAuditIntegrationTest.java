@@ -23,6 +23,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -51,6 +52,9 @@ class JdbcAuditIntegrationTest {
 
     @Autowired
     private RollbackCaller rollbackCaller;
+
+    @Autowired
+    private RequiresNewCaller requiresNewCaller;
 
     @Autowired
     private TestAuditEventConsumer testAuditEventConsumer;
@@ -121,8 +125,23 @@ class JdbcAuditIntegrationTest {
 
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM operation_record", Integer.class))
                 .isZero();
-        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM audit_event", Integer.class))
-                .isZero();
+        await().during(Duration.ofSeconds(1))
+                .atMost(Duration.ofSeconds(3))
+                .until(() -> jdbcTemplate.queryForObject("SELECT COUNT(*) FROM audit_event", Integer.class) == 0);
+    }
+
+    @Test
+    void persistsSuccessWhenARequiresNewTransactionCommitsInsideARolledBackCaller() {
+        assertThatThrownBy(() -> requiresNewCaller.runThenRollback("committed-inner"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("outer failed");
+
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM operation_record", Integer.class))
+                .isEqualTo(1);
+        await().atMost(Duration.ofSeconds(5))
+                .untilAsserted(() -> assertThat(jdbcTemplate.queryForObject(
+                                "SELECT COUNT(*) FROM audit_event WHERE outcome = 'SUCCESS'", Integer.class))
+                        .isEqualTo(1));
     }
 
     @Test
@@ -199,6 +218,16 @@ class JdbcAuditIntegrationTest {
         RollbackCaller rollbackCaller(AuditedOperations operations) {
             return new RollbackCaller(operations);
         }
+
+        @Bean
+        RequiresNewOperation requiresNewOperation(JdbcTemplate jdbcTemplate) {
+            return new RequiresNewOperation(jdbcTemplate);
+        }
+
+        @Bean
+        RequiresNewCaller requiresNewCaller(RequiresNewOperation operation) {
+            return new RequiresNewCaller(operation);
+        }
     }
 
     /** Captures asynchronously consumed events for integration assertions. */
@@ -249,6 +278,36 @@ class JdbcAuditIntegrationTest {
         public void succeedThenRollback(String id) {
             operations.succeed(id);
             throw new IllegalStateException("caller failed");
+        }
+    }
+
+    /** Commits its own transaction even when the caller later rolls back. */
+    static class RequiresNewOperation {
+        private final JdbcTemplate jdbcTemplate;
+
+        RequiresNewOperation(JdbcTemplate jdbcTemplate) {
+            this.jdbcTemplate = jdbcTemplate;
+        }
+
+        @Transactional(propagation = Propagation.REQUIRES_NEW)
+        @Scheduled(fixedDelay = Long.MAX_VALUE)
+        public void succeed(String id) {
+            jdbcTemplate.update("INSERT INTO operation_record (id) VALUES (?)", id);
+        }
+    }
+
+    /** Calls a committed nested operation and then rolls the outer transaction back. */
+    static class RequiresNewCaller {
+        private final RequiresNewOperation operation;
+
+        RequiresNewCaller(RequiresNewOperation operation) {
+            this.operation = operation;
+        }
+
+        @Transactional
+        public void runThenRollback(String id) {
+            operation.succeed(id);
+            throw new IllegalStateException("outer failed");
         }
     }
 }

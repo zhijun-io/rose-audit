@@ -28,11 +28,13 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  * replace the executor with a bean named {@code auditEventTaskExecutor}.
  *
  * <p>A replacement executor should schedule tasks asynchronously; an inline executor makes consumption run on the
- * transaction-completion thread. The JDBC consumer starts its own transaction when it writes an event.
+ * transaction-completion thread and can exhaust the JDBC pool. The JDBC consumer starts its own transaction when it
+ * writes an event.
  *
- * <p>{@code rose.audit.enabled=false} stops recording.
+ * <p>The configuration is applied after transaction auto-configuration, so this advisor stays inside the transaction
+ * advisor when their orders tie. {@code rose.audit.enabled=false} stops recording.
  */
-@AutoConfiguration
+@AutoConfiguration(afterName = "org.springframework.boot.transaction.autoconfigure.TransactionAutoConfiguration")
 @ConditionalOnClass(name = "org.aspectj.lang.annotation.Aspect")
 @ConditionalOnProperty(prefix = "rose.audit", name = "enabled", matchIfMissing = true)
 public class AuditAutoConfiguration {
