@@ -4,6 +4,7 @@ Notable changes to Rose Audit Spring Boot Starter are listed here.
 
 ## 0.1.0-SNAPSHOT
 
+- Sign and publish Maven Central releases only when the `release` profile is active. Snapshot deploys stay unsigned.
 - Move the event model and context-provider APIs to `io.zhijun.audit`, and the servlet request-context provider to
   `io.zhijun.audit.web`; Controller AOP events no longer record a possibly premature default HTTP status.
 - Replace the public `AuditEventPublisher` SPI with Spring application events. Applications that implemented the SPI should migrate to `@EventListener`.
