@@ -4,7 +4,6 @@ import io.zhijun.audit.AuditEvent;
 import io.zhijun.audit.jdbc.AuditEventQueryRequest;
 import io.zhijun.audit.jdbc.AuditEventRecord;
 import io.zhijun.audit.jdbc.AuditEventService;
-import java.time.Instant;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -44,7 +43,7 @@ public class DemoController {
             @RequestParam(required = false) String actorId,
             @RequestParam(required = false) AuditEvent.Outcome outcome,
             Pageable pageable) {
-        var filter = new AuditEventQueryRequest(actorId, null, outcome, (Instant) null, null);
+        var filter = new AuditEventQueryRequest(actorId, null, outcome, null, null);
         return auditEvents.search(filter, pageable);
     }
 
