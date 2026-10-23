@@ -2,6 +2,7 @@ package io.zhijun.audit.autoconfigure;
 
 import io.zhijun.audit.AuditRequestContextProvider;
 import io.zhijun.audit.web.ServletAuditRequestContextProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -19,7 +20,8 @@ import org.springframework.context.annotation.Bean;
 public class AuditWebAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(AuditRequestContextProvider.class)
-    AuditRequestContextProvider servletAuditRequestContextProvider() {
-        return new ServletAuditRequestContextProvider();
+    AuditRequestContextProvider servletAuditRequestContextProvider(
+            @Value("${rose.audit.http.capture-query-string:false}") boolean captureQueryString) {
+        return new ServletAuditRequestContextProvider(captureQueryString);
     }
 }

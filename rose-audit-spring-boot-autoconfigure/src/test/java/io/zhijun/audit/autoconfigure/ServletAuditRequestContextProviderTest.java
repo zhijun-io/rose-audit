@@ -36,4 +36,15 @@ class ServletAuditRequestContextProviderTest {
         assertThat(provider.currentContext())
                 .isEqualTo(new AuditRequestContext("GET", "", null, 200, "192.0.2.10", "audit-test-agent"));
     }
+
+    @Test
+    void omitsTheQueryStringUnlessCaptureIsEnabled() {
+        var request = new MockHttpServletRequest("GET", "/orders");
+        request.setQueryString("token=secret");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request, new MockHttpServletResponse()));
+
+        assertThat(provider.currentContext().queryString()).isNull();
+        assertThat(new ServletAuditRequestContextProvider(true).currentContext().queryString())
+                .isEqualTo("token=secret");
+    }
 }

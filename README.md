@@ -21,7 +21,8 @@ runnable sample application.
 - Store and search events with JDBC and Spring Data pagination.
 - Expose optional Micrometer metrics and a browser-based sample interface.
 
-The starter does not capture request bodies, headers, or full method arguments and return values by default.
+The starter does not capture request bodies, headers, query strings, or full method arguments and return values by
+default.
 
 ## Requirements and technology
 
@@ -39,9 +40,12 @@ Maven coordinates: `io.zhijun:rose-audit-spring-boot-starter`.
 rose:
   audit:
     enabled: true
+    http:
+      capture-query-string: false
 ```
 
-`enabled=false` stops recording and leaves JDBC search in place.
+`enabled=false` stops recording and leaves JDBC search in place. Query strings are stored only when
+`capture-query-string` is `true`.
 
 `actorId` is the account id and `actorName` is the display name. Without an `AuditActorProvider`, Spring Security fills
 only `actorName` from the authenticated principal name. Anonymous sessions and non-HTTP work have neither. A failed
