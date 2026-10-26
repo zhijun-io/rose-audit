@@ -19,4 +19,9 @@ jobs:
     uses: zhijun-io/github-workflows/.github/workflows/ci.yml@main
     with:
       java-version: '25'
+      maven-goals: 'clean -Pcoverage verify -B -ntp'
       upload-test-results: false
+      codecov-files: rose-audit-coverage/target/site/jacoco-aggregate/jacoco.xml
+      codecov-flags: library
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

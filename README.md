@@ -3,7 +3,7 @@
 [![CI](https://github.com/zhijun-io/rose-audit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/zhijun-io/rose-audit/actions/workflows/ci.yml)
 ![Java 25](https://img.shields.io/badge/Java-25-orange?logo=openjdk&logoColor=white)
 ![Spring Boot 4.1.2](https://img.shields.io/badge/Spring%20Boot-4.1.2-6DB33F?logo=springboot&logoColor=white)
-![Coverage: 80% minimum](https://img.shields.io/badge/coverage-80%25%20minimum-brightgreen)
+[![Codecov](https://codecov.io/gh/zhijun-io/rose-audit/branch/main/graph/badge.svg?flag=library)](https://codecov.io/gh/zhijun-io/rose-audit)
 [![License](https://img.shields.io/github/license/zhijun-io/rose-audit)](LICENSE)
 
 Rose Audit records application activity at HTTP, authentication, scheduled-task, and message-listener boundaries. Events are delivered asynchronously to a consumer; the JDBC module provides PostgreSQL persistence and paginated search.
@@ -71,9 +71,10 @@ Run the Maven verification lifecycle from the repository root:
 ```sh
 mvn verify
 mvn spotless:check
+./mvnw -Pcoverage -pl rose-audit-coverage -am verify
 ```
 
-JaCoCo reports are written to each module's `target/site/jacoco/`. Verification enforces at least 80% line coverage for library modules; the sample is reported without a threshold. JDBC integration tests use Testcontainers and require Docker.
+The `coverage` profile generates an aggregate line-coverage report for library modules and excludes the sample. Codecov enforces an 80% project coverage target for the `library` flag; Maven generates the report without enforcing a percentage locally. GitHub Actions uploads the JaCoCo report to Codecov, and the badge reads the `library` flag. Configure `CODECOV_TOKEN` only if required by the repository's Codecov setup. See the [aggregate report](rose-audit-coverage/target/site/jacoco-aggregate/index.html) after running the command locally. JDBC integration tests use Testcontainers and require Docker.
 
 ## License
 
