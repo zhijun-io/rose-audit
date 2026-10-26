@@ -6,15 +6,15 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.1.1</version>
+        <version>4.1.2</version>
         <relativePath/>
     </parent>
 
     <groupId>io.zhijun</groupId>
-    <artifactId>rose-audit-spring-boot-starter-parent</artifactId>
+    <artifactId>rose-audit</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>Rose Audit Spring Boot Starter Parent</name>
+    <name>Rose Audit Parent</name>
 
     <licenses>
         <license>
@@ -24,9 +24,9 @@
     </licenses>
 
     <scm>
-        <url>https://github.com/zhijun-io/rose-audit-spring-boot-starter</url>
-        <connection>scm:git:git://github.com/zhijun-io/rose-audit-spring-boot-starter.git</connection>
-        <developerConnection>scm:git:git@github.com:zhijun-io/rose-audit-spring-boot-starter.git</developerConnection>
+        <url>https://github.com/zhijun-io/rose-audit</url>
+        <connection>scm:git:git://github.com/zhijun-io/rose-audit.git</connection>
+        <developerConnection>scm:git:git@github.com:zhijun-io/rose-audit.git</developerConnection>
     </scm>
 
     <developers>
@@ -42,17 +42,19 @@
 
     <properties>
         <java.version>25</java.version>
-        <maven.compiler.release>25</maven.compiler.release>
 
         <maven-gpg-plugin.version>3.2.7</maven-gpg-plugin.version>
         <central-publishing-maven-plugin.version>0.10.0</central-publishing-maven-plugin.version>
         <archunit.version>1.5.1</archunit.version>
         <taikai.version>1.67.0</taikai.version>
+        <jacoco.version>0.8.14</jacoco.version>
+        <jacoco.coverage.minimum>0.80</jacoco.coverage.minimum>
+        <jacoco.check.skip>false</jacoco.check.skip>
     </properties>
 
     <modules>
         <module>rose-audit-spring-boot-autoconfigure</module>
-        <module>rose-audit-spring-boot-jdbc</module>
+        <module>rose-audit-spring-boot-starter-jdbc</module>
         <module>rose-audit-spring-boot-starter</module>
         <module>rose-audit-sample</module>
     </modules>
@@ -66,7 +68,7 @@
             </dependency>
             <dependency>
                 <groupId>io.zhijun</groupId>
-                <artifactId>rose-audit-spring-boot-jdbc</artifactId>
+                <artifactId>rose-audit-spring-boot-starter-jdbc</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -88,6 +90,46 @@
                         <removeUnusedImports/>
                     </java>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>check-coverage</id>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${jacoco.check.skip}</skip>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.coverage.minimum}</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
