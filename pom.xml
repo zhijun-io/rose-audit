@@ -42,12 +42,12 @@
 
     <properties>
         <java.version>25</java.version>
+        <archunit.version>1.5.1</archunit.version>
+        <taikai.version>1.67.0</taikai.version>
 
         <maven-gpg-plugin.version>3.2.7</maven-gpg-plugin.version>
         <central-publishing-maven-plugin.version>0.10.0</central-publishing-maven-plugin.version>
-        <archunit.version>1.5.1</archunit.version>
-        <taikai.version>1.67.0</taikai.version>
-        <jacoco.version>0.8.14</jacoco.version>
+        <jacoco.version>0.8.15</jacoco.version>
         <jacoco.coverage.minimum>0.80</jacoco.coverage.minimum>
         <jacoco.check.skip>false</jacoco.check.skip>
     </properties>
