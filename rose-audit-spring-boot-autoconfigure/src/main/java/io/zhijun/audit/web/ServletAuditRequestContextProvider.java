@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -56,9 +57,10 @@ public class ServletAuditRequestContextProvider implements AuditRequestContextPr
 
     private String filteredQueryString(String queryString) {
         if (queryString == null || queryParametersAllowlist.isEmpty()) return null;
-        var kept = new java.util.ArrayList<String>();
+        var kept = new ArrayList<String>();
         for (String pair : queryString.split("&")) {
-            String key = pair.substring(0, pair.indexOf('=') < 0 ? pair.length() : pair.indexOf('='));
+            int equalsIndex = pair.indexOf('=');
+            String key = equalsIndex < 0 ? pair : pair.substring(0, equalsIndex);
             try {
                 if (queryParametersAllowlist.contains(URLDecoder.decode(key, StandardCharsets.UTF_8))) kept.add(pair);
             } catch (IllegalArgumentException malformed) {

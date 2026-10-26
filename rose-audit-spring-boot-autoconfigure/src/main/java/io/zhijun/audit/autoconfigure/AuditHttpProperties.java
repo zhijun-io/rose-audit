@@ -1,14 +1,13 @@
 package io.zhijun.audit.autoconfigure;
 
-import java.util.ArrayList;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties("rose.audit.http")
 public class AuditHttpProperties {
-    private List<String> include = new ArrayList<>();
-    private List<String> queryParametersAllowlist = new ArrayList<>();
-    private List<String> exclude = new ArrayList<>(List.of(
+    private List<String> include = List.of();
+    private List<String> queryParametersAllowlist = List.of();
+    private List<String> exclude = List.of(
             "/actuator/**",
             "/swagger-ui/**",
             "/v3/api-docs/**",
@@ -29,7 +28,7 @@ public class AuditHttpProperties {
             "/**/*.svg",
             "/**/*.ico",
             "/**/*.woff",
-            "/**/*.woff2"));
+            "/**/*.woff2");
 
     public List<String> getInclude() {
         return include;

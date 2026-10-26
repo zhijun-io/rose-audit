@@ -54,18 +54,9 @@ final class AuditEventFactory {
             Instant occurredAt,
             Long durationMs,
             Throwable failure) {
-        AuditCorrelationContext correlation = correlationContextProvider.currentContext();
-        if (correlation == null) {
-            correlation = AuditCorrelationContext.empty();
-        }
-
-        AuditRequestContextProvider provider = requestContextProvider.getIfAvailable();
         boolean background = type == AuditEvent.Type.SCHEDULED_TASK || type == AuditEvent.Type.MESSAGE;
-        AuditRequestContext request =
-                background || provider == null ? AuditRequestContext.empty() : provider.currentContext();
-        if (request == null) {
-            request = AuditRequestContext.empty();
-        }
+        AuditCorrelationContext correlation = currentCorrelation();
+        AuditRequestContext request = currentRequest(background);
 
         return new AuditEvent(
                 UUID.randomUUID().toString(),
@@ -152,11 +143,8 @@ final class AuditEventFactory {
             String route,
             String clientIp,
             String userAgent) {
-        AuditCorrelationContext correlation = correlationContextProvider.currentContext();
-        if (correlation == null) correlation = AuditCorrelationContext.empty();
-        AuditRequestContextProvider provider = requestContextProvider.getIfAvailable();
-        AuditRequestContext request = provider == null ? AuditRequestContext.empty() : provider.currentContext();
-        if (request == null) request = AuditRequestContext.empty();
+        AuditCorrelationContext correlation = currentCorrelation();
+        AuditRequestContext request = currentRequest(false);
         return new AuditEvent(
                 UUID.randomUUID().toString(),
                 AuditEvent.Type.HTTP_REQUEST,
@@ -184,6 +172,17 @@ final class AuditEventFactory {
             return null;
         }
         return limit(value);
+    }
+
+    private AuditCorrelationContext currentCorrelation() {
+        AuditCorrelationContext context = correlationContextProvider.currentContext();
+        return context == null ? AuditCorrelationContext.empty() : context;
+    }
+
+    private AuditRequestContext currentRequest(boolean background) {
+        AuditRequestContextProvider provider = requestContextProvider.getIfAvailable();
+        AuditRequestContext context = background || provider == null ? null : provider.currentContext();
+        return context == null ? AuditRequestContext.empty() : context;
     }
 
     private static String limit(String value) {
